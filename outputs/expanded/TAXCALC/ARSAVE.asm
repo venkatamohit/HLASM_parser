@@ -1,0 +1,7 @@
+* CHUNK : ARSAVE
+* TYPE  : SUBROUTINE
+* SOURCE: tests/fixtures/programs/TAXCALC
+* DEPS  : (none)
+*──────────────────────────────────────────────────────────────────
+DC    18F'0'
+END   TAXCALC
