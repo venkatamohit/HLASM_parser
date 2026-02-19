@@ -1,0 +1,132 @@
+
+────────────────────────────────────────────────────────────
+  Label : DEDUCTNS
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 12
+  Deps  : HLTHDED, RETIRE
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, DDSAVE+4
+    LA       13, DDSAVE
+    XC       DEDAMT, DEDAMT
+    GO       HLTHDED
+    GO       RETIRE
+    L        13, DDSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : DDSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : DEDAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : HLTAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : RETAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : HLTHDED
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 14
+  Deps  : HHLTEXIT
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, HHSAVE+4
+    LA       13, HHSAVE
+    TM       PAYFLAG, X'02'
+    BNO      HHLTEXIT
+    L        2, BASEPAY
+    M        2, =F'3'
+    D        2, =F'100'
+    ST       3, HLTAMT
+    A        3, DEDAMT
+    ST       3, DEDAMT
+
+────────────────────────────────────────────────────────────
+  Label : HHLTEXIT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, HHSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : HHSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : RETIRE
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 14
+  Deps  : RTEXIT
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, RTSAVE+4
+    LA       13, RTSAVE
+    TM       PAYFLAG, X'02'
+    BNO      RTEXIT
+    L        2, BASEPAY
+    M        2, =F'5'
+    D        2, =F'100'
+    ST       3, RETAMT
+    A        3, DEDAMT
+    ST       3, DEDAMT
+
+────────────────────────────────────────────────────────────
+  Label : RTEXIT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, RTSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : RTSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      DEDUCTNS

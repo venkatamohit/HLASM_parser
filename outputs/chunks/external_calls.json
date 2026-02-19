@@ -1,0 +1,266 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/external_calls.hlasm",
+    "instruction_count": 13,
+    "dependencies": [
+      "SUBPROG1",
+      "SUBPROG2",
+      "LOCALRTN"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "ECSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,ECSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "ECSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,ECSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "PARMLIST"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,PARMLIST"
+      },
+      {
+        "label": null,
+        "opcode": "CALL",
+        "operands": [
+          "SUBPROG1"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "CALL  SUBPROG1"
+      },
+      {
+        "label": null,
+        "opcode": "LINK",
+        "operands": [
+          "EP=SUBPROG2"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "LINK  EP=SUBPROG2"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "LOCALRTN"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,LOCALRTN"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "ECSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,ECSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "LOCALRTN",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/external_calls.hlasm",
+    "instruction_count": 3,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRKBUFF",
+          "=CL80' '"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRKBUFF,=CL80' '"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "ECSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/external_calls.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PARMLIST",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/external_calls.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "A(0)"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    A(0)"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRKBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/external_calls.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL80"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL80"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "EXTCALL"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   EXTCALL"
+      }
+    ],
+    "metadata": {}
+  }
+]

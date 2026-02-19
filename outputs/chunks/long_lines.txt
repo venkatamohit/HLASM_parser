@@ -1,0 +1,13 @@
+
+────────────────────────────────────────────────────────────
+  Label : HLASM_ROOT
+  Type  : CSECT
+  File  : tests/fixtures/long_lines.hlasm
+  Instrs: 6
+  Deps  : (none)
+    CSECT    
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    BR       14
+    END      LONGPROG

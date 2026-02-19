@@ -1,0 +1,544 @@
+[
+  {
+    "label": "TAXCALC",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 11,
+    "dependencies": [
+      "TAXHI",
+      "TAXAPPLY"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "TCSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,TCSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "TCSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,TCSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "2",
+          "BASEPAY"
+        ],
+        "comment": "Load gross pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     2,BASEPAY        Load gross pay"
+      },
+      {
+        "label": null,
+        "opcode": "C",
+        "operands": [
+          "2",
+          "=F'50000'"
+        ],
+        "comment": "Compare with low threshold",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "C     2,=F'50000'      Compare with low threshold"
+      },
+      {
+        "label": null,
+        "opcode": "BH",
+        "operands": [
+          "TAXHI"
+        ],
+        "comment": "Branch if high earner",
+        "instruction_type": "BRANCH",
+        "raw_text": "BH    TAXHI            Branch if high earner"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "TAXRATE",
+          "=F'20'"
+        ],
+        "comment": "20% standard rate",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   TAXRATE,=F'20'   20% standard rate"
+      },
+      {
+        "label": null,
+        "opcode": "B",
+        "operands": [
+          "TAXAPPLY"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "B     TAXAPPLY"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TAXHI",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "TAXRATE",
+          "=F'40'"
+        ],
+        "comment": "40% higher rate",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   TAXRATE,=F'40'   40% higher rate"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TAXAPPLY",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 10,
+    "dependencies": [
+      "APPLYRT",
+      "DEDUCTNS"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "APPLYRT"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    APPLYRT"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "DEDUCTNS"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    DEDUCTNS"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "3",
+          "BASEPAY"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     3,BASEPAY"
+      },
+      {
+        "label": null,
+        "opcode": "S",
+        "operands": [
+          "3",
+          "TAXAMT"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "S     3,TAXAMT"
+      },
+      {
+        "label": null,
+        "opcode": "S",
+        "operands": [
+          "3",
+          "DEDAMT"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "S     3,DEDAMT"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "NETPAY"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,NETPAY"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "TCSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,TCSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TCSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TAXRATE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    F"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TAXAMT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    F"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "DEDAMT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    F"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "APPLYRT",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 13,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "ARSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,ARSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "ARSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,ARSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "2",
+          "BASEPAY"
+        ],
+        "comment": "Load gross pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     2,BASEPAY        Load gross pay"
+      },
+      {
+        "label": null,
+        "opcode": "M",
+        "operands": [
+          "2",
+          "TAXRATE"
+        ],
+        "comment": "Multiply by rate",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "M     2,TAXRATE        Multiply by rate"
+      },
+      {
+        "label": null,
+        "opcode": "D",
+        "operands": [
+          "2",
+          "=F'100'"
+        ],
+        "comment": "Divide by 100 (get percentage)",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "D     2,=F'100'        Divide by 100 (get percentage)"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "TAXAMT"
+        ],
+        "comment": "Store tax amount",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,TAXAMT         Store tax amount"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "ARSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,ARSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "ARSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/TAXCALC",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "TAXCALC"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   TAXCALC"
+      }
+    ],
+    "metadata": {}
+  }
+]

@@ -1,0 +1,65 @@
+
+────────────────────────────────────────────────────────────
+  Label : HLASM_ROOT
+  Type  : CSECT
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 16
+  Deps  : (none)
+    PROGRAM  WITH
+    MULTIPLE section
+    CSECT    
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, PMSVAREA+4
+    LA       13, PMSVAREA
+    ORAGE    for
+    LA       2, WORKAREA
+    USING    WORKMAPD, 2
+    MVC      WRK_NAME, =CL20'DEFAULT NAME'
+    MVI      WRK_FLAG, X'01'
+    L        13, PMSVAREA+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : PMSVAREA
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : WORKAREA
+  Type  : DSECT
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 2
+  Deps  : (none)
+    DS       CL100
+    DSECT    
+
+────────────────────────────────────────────────────────────
+  Label : WRK_NAME
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL20
+
+────────────────────────────────────────────────────────────
+  Label : WRK_FLAG
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       X
+
+────────────────────────────────────────────────────────────
+  Label : WRK_LEN
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_dsect.hlasm
+  Instrs: 2
+  Deps  : (none)
+    EQU      *-WORKMAPD
+    END      PROGMAIN

@@ -1,0 +1,610 @@
+
+════════════════════════════════════════════════════════════
+  File: tests/fixtures/programs/PAYROLL.asm
+════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+  Label : HLASM_ROOT
+  Type  : CSECT
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 18
+  Deps  : INITWS, VALIDATE, CALCBASE, TAXCALC, DEDUCTNS, PRTREORT, RPTWRITE
+    CSECT    
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, PAYSAVE+4
+    LA       13, PAYSAVE
+    GO       INITWS
+    GO       VALIDATE
+    LA       1, EMPREC
+    BAL      14, CALCBASE
+    GO       TAXCALC
+    GO       DEDUCTNS
+    LA       1, OUTBUFF
+    BAL      14, PRTREORT
+    GO       RPTWRITE
+    L        13, PAYSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : PAYSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : EMPREC
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL80
+
+────────────────────────────────────────────────────────────
+  Label : OUTBUFF
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL133
+
+────────────────────────────────────────────────────────────
+  Label : PAYFLAG
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       X
+
+────────────────────────────────────────────────────────────
+  Label : BASEPAY
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : NETPAY
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : CALCBASE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 12
+  Deps  : (none)
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, CBSAVE+4
+    LA       13, CBSAVE
+    L        2, 0(1)
+    M        2, =F'1000'
+    ST       3, BASEPAY
+    MVI      PAYFLAG, X'01'
+    L        13, CBSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : CBSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : PRTREORT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 13
+  Deps  : (none)
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, PRSAVE+4
+    LA       13, PRSAVE
+    MVC      0(133,1), =CL133' '
+    MVC      1(80,1), EMPREC
+    CVD      3, WORKDBL
+    MVC      50(12,1), =X'402020206B2020206B202060'
+    ED       50(12,1), WORKDBL+3
+    L        13, PRSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : PRSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : WORKDBL
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DS       D
+
+────────────────────────────────────────────────────────────
+  Label : INITWS
+  Type  : ENTRY
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 14
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, IWSAVE+4
+    LA       13, IWSAVE
+    MVC      EMPREC, =CL80' '
+    MVC      OUTBUFF, =CL133' '
+    MVI      PAYFLAG, X'00'
+    XC       BASEPAY, BASEPAY
+    XC       NETPAY, NETPAY
+    L        13, IWSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : IWSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : VALIDATE
+  Type  : ENTRY
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 12
+  Deps  : VALERR, VALOK
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, VLSAVE+4
+    LA       13, VLSAVE
+    CLC      EMPREC(8), =CL8' '
+    BE       VALERR
+    CLC      EMPREC+8(4), =F'0'
+    BNH      VALERR
+    MVI      PAYFLAG, X'02'
+    B        VALOK
+
+────────────────────────────────────────────────────────────
+  Label : VALERR
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 1
+  Deps  : (none)
+    MVI      PAYFLAG, X'FF'
+
+────────────────────────────────────────────────────────────
+  Label : VALOK
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, VLSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : VLSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/PAYROLL.asm
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      PAYROLL
+
+════════════════════════════════════════════════════════════
+  File: tests/fixtures/programs/TAXCALC
+════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+  Label : TAXCALC
+  Type  : ENTRY
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 11
+  Deps  : TAXHI, TAXAPPLY
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, TCSAVE+4
+    LA       13, TCSAVE
+    L        2, BASEPAY
+    C        2, =F'50000'
+    BH       TAXHI
+    MVC      TAXRATE, =F'20'
+    B        TAXAPPLY
+
+────────────────────────────────────────────────────────────
+  Label : TAXHI
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 2
+  Deps  : (none)
+    DS       0H
+    MVC      TAXRATE, =F'40'
+
+────────────────────────────────────────────────────────────
+  Label : TAXAPPLY
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 10
+  Deps  : APPLYRT, DEDUCTNS
+    DS       0H
+    GO       APPLYRT
+    GO       DEDUCTNS
+    L        3, BASEPAY
+    S        3, TAXAMT
+    S        3, DEDAMT
+    ST       3, NETPAY
+    L        13, TCSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : TCSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : TAXRATE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : TAXAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : DEDAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : APPLYRT
+  Type  : ENTRY
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 13
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, ARSAVE+4
+    LA       13, ARSAVE
+    L        2, BASEPAY
+    M        2, TAXRATE
+    D        2, =F'100'
+    ST       3, TAXAMT
+    L        13, ARSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : ARSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      TAXCALC
+
+════════════════════════════════════════════════════════════
+  File: tests/fixtures/programs/DEDUCTNS
+════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+  Label : DEDUCTNS
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 12
+  Deps  : HLTHDED, RETIRE
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, DDSAVE+4
+    LA       13, DDSAVE
+    XC       DEDAMT, DEDAMT
+    GO       HLTHDED
+    GO       RETIRE
+    L        13, DDSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : DDSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : DEDAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : HLTAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : RETAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : HLTHDED
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 14
+  Deps  : HHLTEXIT
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, HHSAVE+4
+    LA       13, HHSAVE
+    TM       PAYFLAG, X'02'
+    BNO      HHLTEXIT
+    L        2, BASEPAY
+    M        2, =F'3'
+    D        2, =F'100'
+    ST       3, HLTAMT
+    A        3, DEDAMT
+    ST       3, DEDAMT
+
+────────────────────────────────────────────────────────────
+  Label : HHLTEXIT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, HHSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : HHSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : RETIRE
+  Type  : ENTRY
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 14
+  Deps  : RTEXIT
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, RTSAVE+4
+    LA       13, RTSAVE
+    TM       PAYFLAG, X'02'
+    BNO      RTEXIT
+    L        2, BASEPAY
+    M        2, =F'5'
+    D        2, =F'100'
+    ST       3, RETAMT
+    A        3, DEDAMT
+    ST       3, DEDAMT
+
+────────────────────────────────────────────────────────────
+  Label : RTEXIT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, RTSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : RTSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/DEDUCTNS
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      DEDUCTNS
+
+════════════════════════════════════════════════════════════
+  File: tests/fixtures/programs/RPTWRITE
+════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+  Label : RPTWRITE
+  Type  : ENTRY
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 14
+  Deps  : HDRBLD, TAXCALC, FMTLINE
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, RWSAVE+4
+    LA       13, RWSAVE
+    LA       1, HDRBUFF
+    BAL      14, HDRBLD
+    GO       TAXCALC
+    GO       FMTLINE
+    MVC      OUTREC, OUTBUFF
+    L        13, RWSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : RWSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : HDRBUFF
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DS       CL133
+
+────────────────────────────────────────────────────────────
+  Label : OUTREC
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DS       CL133
+
+────────────────────────────────────────────────────────────
+  Label : PAGENO
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DC       H'0'
+
+────────────────────────────────────────────────────────────
+  Label : LINENO
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DC       H'0'
+
+────────────────────────────────────────────────────────────
+  Label : HDRBLD
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 16
+  Deps  : (none)
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, HBSAVE+4
+    LA       13, HBSAVE
+    MVC      0(133,1), =CL133' '
+    MVC      1(30,1), =CL30'PAYROLL REGISTER'
+    AH       0, PAGENO
+    STH      0, PAGENO
+    CVD      0, CVTWORK
+    MVC      120(5,1), =X'4020202120'
+    ED       120(5,1), CVTWORK+6
+    MVC      115(5,1), =CL5'PAGE:'
+    L        13, HBSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : HBSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : CVTWORK
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DS       D
+
+────────────────────────────────────────────────────────────
+  Label : FMTLINE
+  Type  : ENTRY
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 21
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, FLSAVE+4
+    LA       13, FLSAVE
+    MVC      OUTBUFF, =CL133' '
+    MVC      OUTBUFF+1(8), EMPREC
+    MVC      OUTBUFF+10(20), EMPREC+8
+    CVD      3, FLWORK
+    MVC      OUTBUFF+40(12), =X'402020206B2020206B202060'
+    ED       OUTBUFF+40(12), FLWORK+3
+    L        3, NETPAY
+    CVD      3, FLWORK
+    MVC      OUTBUFF+55(12), =X'402020206B2020206B202060'
+    ED       OUTBUFF+55(12), FLWORK+3
+    AH       0, LINENO
+    STH      0, LINENO
+    L        13, FLSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : FLSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : FLWORK
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/RPTWRITE
+  Instrs: 2
+  Deps  : (none)
+    DS       D
+    END      RPTWRITE

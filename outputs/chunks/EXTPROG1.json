@@ -1,0 +1,182 @@
+[
+  {
+    "label": "EXTPROG1",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/EXTPROG1.asm",
+    "instruction_count": 11,
+    "dependencies": [
+      "EXTPROG2"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "EP1SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,EP1SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "EP1SAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,EP1SAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "EXTBUFF",
+          "=CL80'EXTPROG1 WAS HERE'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   EXTBUFF,=CL80'EXTPROG1 WAS HERE'"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "EXTPROG2"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    EXTPROG2"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "EP1SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,EP1SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "EP1SAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/EXTPROG1.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "EXTBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/EXTPROG1.asm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL80"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL80"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "EXTPROG1"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   EXTPROG1"
+      }
+    ],
+    "metadata": {}
+  }
+]

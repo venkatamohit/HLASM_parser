@@ -1,0 +1,74 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/long_lines.hlasm",
+    "instruction_count": 6,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": "Save all registers",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)     Save all registers"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": "Establish addressability",
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0             Establish addressability"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": "Return",
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14               Return"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "LONGPROG"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   LONGPROG"
+      }
+    ],
+    "metadata": {}
+  }
+]

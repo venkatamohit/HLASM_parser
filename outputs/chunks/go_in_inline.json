@@ -1,0 +1,892 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 11,
+    "dependencies": [
+      "VALIDATE",
+      "TRANSFM",
+      "CLEANUP",
+      "EXTPROG1"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": "Establish base register",
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0              Establish base register"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRKNAME",
+          "=CL20' '"
+        ],
+        "comment": "Clear name field",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRKNAME,=CL20' '     Clear name field"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "WRKFLAG",
+          "X'00'"
+        ],
+        "comment": "Clear flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   WRKFLAG,X'00'        Clear flag"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "VALIDATE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    VALIDATE"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "TRANSFM"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    TRANSFM"
+      },
+      {
+        "label": null,
+        "opcode": "TM",
+        "operands": [
+          "WRKFLAG",
+          "X'01'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "TM    WRKFLAG,X'01'"
+      },
+      {
+        "label": null,
+        "opcode": "GOIF",
+        "operands": [
+          "CLEANUP"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GOIF  CLEANUP"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "EXTPROG1"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    EXTPROG1"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRKNAME",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL20"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL20"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRKFLAG",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "X"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    X"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRKBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL80"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL80"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALIDATE",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 11,
+    "dependencies": [
+      "VALERR",
+      "EXTPROG3",
+      "VALOK"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": "Save registers",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)     Save registers"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "VALSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,VALSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "VALSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,VALSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "CLC",
+        "operands": [
+          "WRKNAME",
+          "=CL20' '"
+        ],
+        "comment": "Check if name is blank",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CLC   WRKNAME,=CL20' '    Check if name is blank"
+      },
+      {
+        "label": null,
+        "opcode": "BE",
+        "operands": [
+          "VALERR"
+        ],
+        "comment": "Branch if blank",
+        "instruction_type": "BRANCH",
+        "raw_text": "BE    VALERR               Branch if blank"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "WRKFLAG",
+          "X'01'"
+        ],
+        "comment": "Set \"valid\" flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   WRKFLAG,X'01'       Set \"valid\" flag"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "EXTPROG3"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    EXTPROG3"
+      },
+      {
+        "label": null,
+        "opcode": "B",
+        "operands": [
+          "VALOK"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "B     VALOK"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALERR",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "WRKFLAG",
+          "X'FF'"
+        ],
+        "comment": "Set \"error\" flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   WRKFLAG,X'FF'       Set \"error\" flag"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALOK",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 4,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "VALSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,VALSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TRANSFM",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 11,
+    "dependencies": [
+      "FMTNAME"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "TRSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,TRSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "TRSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,TRSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "FMTNAME"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    FMTNAME"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRKBUFF",
+          "WRKNAME"
+        ],
+        "comment": "Copy to output buffer",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRKBUFF,WRKNAME     Copy to output buffer"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "TRSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,TRSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "TRSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "FMTNAME",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 10,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "FNSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,FNSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "FNSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,FNSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "TR",
+        "operands": [
+          "WRKNAME",
+          "UPRTAB"
+        ],
+        "comment": "Translate to uppercase",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "TR    WRKNAME,UPRTAB      Translate to uppercase"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "FNSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,FNSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "FNSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "UPRTAB",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL256"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL256"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "CLEANUP",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 12,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "CLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,CLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "CLSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,CLSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRKBUFF",
+          "=CL80' '"
+        ],
+        "comment": "Clear output buffer",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRKBUFF,=CL80' '   Clear output buffer"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRKNAME",
+          "=CL20' '"
+        ],
+        "comment": "Clear name",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRKNAME,=CL20' '   Clear name"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "WRKFLAG",
+          "X'00'"
+        ],
+        "comment": "Clear flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   WRKFLAG,X'00'      Clear flag"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "CLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,CLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "CLSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/go_in_inline.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "MAINPROG"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   MAINPROG"
+      }
+    ],
+    "metadata": {}
+  }
+]

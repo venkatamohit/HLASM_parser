@@ -1,0 +1,782 @@
+[
+  {
+    "label": "RPTWRITE",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 14,
+    "dependencies": [
+      "HDRBLD",
+      "TAXCALC",
+      "FMTLINE"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "RWSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,RWSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "RWSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,RWSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "HDRBUFF"
+        ],
+        "comment": "Load header buffer address",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,HDRBUFF        Load header buffer address"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "HDRBLD"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,HDRBLD"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "TAXCALC"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    TAXCALC"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "FMTLINE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    FMTLINE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTREC",
+          "OUTBUFF"
+        ],
+        "comment": "Move formatted line to output",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTREC,OUTBUFF   Move formatted line to output"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "RWSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,RWSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "RWSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HDRBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL133"
+        ],
+        "comment": "Page header line (ASA)",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL133            Page header line (ASA)"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "OUTREC",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL133"
+        ],
+        "comment": "Final output record",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL133            Final output record"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PAGENO",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "H'0'"
+        ],
+        "comment": "Current page number",
+        "instruction_type": "DATA",
+        "raw_text": "DC    H'0'             Current page number"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "LINENO",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "H'0'"
+        ],
+        "comment": "Current line number",
+        "instruction_type": "DATA",
+        "raw_text": "DC    H'0'             Current line number"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HDRBLD",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 16,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "HBSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,HBSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "HBSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,HBSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "0(133,1)",
+          "=CL133' '"
+        ],
+        "comment": "Clear header line",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   0(133,1),=CL133' '        Clear header line"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "1(30,1)",
+          "=CL30'PAYROLL REGISTER'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   1(30,1),=CL30'PAYROLL REGISTER'"
+      },
+      {
+        "label": null,
+        "opcode": "AH",
+        "operands": [
+          "0",
+          "PAGENO"
+        ],
+        "comment": "Increment page number",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "AH    0,PAGENO                   Increment page number"
+      },
+      {
+        "label": null,
+        "opcode": "STH",
+        "operands": [
+          "0",
+          "PAGENO"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STH   0,PAGENO"
+      },
+      {
+        "label": null,
+        "opcode": "CVD",
+        "operands": [
+          "0",
+          "CVTWORK"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CVD   0,CVTWORK"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "120(5,1)",
+          "=X'4020202120'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   120(5,1),=X'4020202120'"
+      },
+      {
+        "label": null,
+        "opcode": "ED",
+        "operands": [
+          "120(5,1)",
+          "CVTWORK+6"
+        ],
+        "comment": "Edit page number",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ED    120(5,1),CVTWORK+6        Edit page number"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "115(5,1)",
+          "=CL5'PAGE:'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   115(5,1),=CL5'PAGE:'"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "HBSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,HBSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HBSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "CVTWORK",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "D"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    D"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "FMTLINE",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 21,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "FLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,FLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "FLSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,FLSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF",
+          "=CL133' '"
+        ],
+        "comment": "Clear line",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF,=CL133' '         Clear line"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF+1(8)",
+          "EMPREC"
+        ],
+        "comment": "Employee ID (cols 2-9)",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF+1(8),EMPREC       Employee ID (cols 2-9)"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF+10(20)",
+          "EMPREC+8"
+        ],
+        "comment": "Employee name (cols 11-30)",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF+10(20),EMPREC+8   Employee name (cols 11-30)"
+      },
+      {
+        "label": null,
+        "opcode": "CVD",
+        "operands": [
+          "3",
+          "FLWORK"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CVD   3,FLWORK"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF+40(12)",
+          "=X'402020206B2020206B202060'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF+40(12),=X'402020206B2020206B202060'"
+      },
+      {
+        "label": null,
+        "opcode": "ED",
+        "operands": [
+          "OUTBUFF+40(12)",
+          "FLWORK+3"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ED    OUTBUFF+40(12),FLWORK+3"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "3",
+          "NETPAY"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     3,NETPAY"
+      },
+      {
+        "label": null,
+        "opcode": "CVD",
+        "operands": [
+          "3",
+          "FLWORK"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CVD   3,FLWORK"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF+55(12)",
+          "=X'402020206B2020206B202060'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF+55(12),=X'402020206B2020206B202060'"
+      },
+      {
+        "label": null,
+        "opcode": "ED",
+        "operands": [
+          "OUTBUFF+55(12)",
+          "FLWORK+3"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ED    OUTBUFF+55(12),FLWORK+3"
+      },
+      {
+        "label": null,
+        "opcode": "AH",
+        "operands": [
+          "0",
+          "LINENO"
+        ],
+        "comment": "Increment line counter",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "AH    0,LINENO                   Increment line counter"
+      },
+      {
+        "label": null,
+        "opcode": "STH",
+        "operands": [
+          "0",
+          "LINENO"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STH   0,LINENO"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "FLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,FLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "FLSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "FLWORK",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/RPTWRITE",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "D"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    D"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "RPTWRITE"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   RPTWRITE"
+      }
+    ],
+    "metadata": {}
+  }
+]

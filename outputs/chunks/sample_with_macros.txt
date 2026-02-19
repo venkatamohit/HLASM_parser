@@ -1,0 +1,56 @@
+
+────────────────────────────────────────────────────────────
+  Label : MACROPRO
+  Type  : MACRO
+  File  : tests/fixtures/sample_with_macros.hlasm
+  Instrs: 4
+  Deps  : (none)
+    G        CSECT
+    BALR     12, 0
+    USING    *, 12
+    MACRO    
+
+────────────────────────────────────────────────────────────
+  Label : MYSAVE
+  Type  : MACRO
+  File  : tests/fixtures/sample_with_macros.hlasm
+  Instrs: 6
+  Deps  : (none)
+    SAVEREGS 
+    STM      14, 12, 12(13)
+    ST       13, +4
+    LA       13
+    MEND     
+    MACRO    
+
+────────────────────────────────────────────────────────────
+  Label : GREETING
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_with_macros.hlasm
+  Instrs: 8
+  Deps  : (none)
+    PRINTMSG 13
+    LA       0, 13
+    LA       1
+    SVC      35
+    MEND     
+    L        13, MYSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : MYSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_with_macros.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : GREETING
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample_with_macros.hlasm
+  Instrs: 2
+  Deps  : (none)
+    DC       C'HELLO WORLD!'
+    END      MACROPROG

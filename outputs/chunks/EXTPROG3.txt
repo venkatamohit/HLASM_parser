@@ -1,0 +1,34 @@
+
+────────────────────────────────────────────────────────────
+  Label : EXTPROG3
+  Type  : ENTRY
+  File  : tests/fixtures/programs/EXTPROG3.asm
+  Instrs: 10
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, EP3SAVE+4
+    LA       13, EP3SAVE
+    MVI      EP3FLAG, X'01'
+    L        13, EP3SAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : EP3SAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/EXTPROG3.asm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : EP3FLAG
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/EXTPROG3.asm
+  Instrs: 2
+  Deps  : (none)
+    DS       X
+    END      EXTPROG3
