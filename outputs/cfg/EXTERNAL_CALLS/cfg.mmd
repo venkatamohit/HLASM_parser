@@ -1,0 +1,14 @@
+---
+title: "EXTERNAL_CALLS Control Flow Graph"
+---
+flowchart TD
+    EXTERNAL_CALLS["EXTERNAL_CALLS\nDRIVER"]:::driver
+    SUBPROG1["SUBPROG1\nNOT FOUND"]:::missing
+    SUBPROG2["SUBPROG2\nNOT FOUND"]:::missing
+
+    EXTERNAL_CALLS -.->|"CALL\nHLASM_ROOT"| SUBPROG1
+    EXTERNAL_CALLS -.->|"LINK\nHLASM_ROOT"| SUBPROG2
+
+    classDef driver  fill:#2E86AB,color:#fff,stroke:#1a5276
+    classDef present fill:#27AE60,color:#fff,stroke:#1e8449
+    classDef missing fill:#E74C3C,color:#fff,stroke:#922b21,stroke-dasharray:5 5

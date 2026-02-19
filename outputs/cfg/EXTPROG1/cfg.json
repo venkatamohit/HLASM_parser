@@ -1,0 +1,41 @@
+{
+  "driver": "EXTPROG1",
+  "nodes": [
+    {
+      "id": "EXTPROG1",
+      "label": "EXTPROG1",
+      "status": "driver",
+      "color": "#2E86AB",
+      "file_path": "tests/fixtures/programs/EXTPROG1.asm",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "EXTPROG2",
+      "label": "EXTPROG2",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/EXTPROG2.asm",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "EXTPROG1",
+      "to": "EXTPROG2",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "EXTPROG1"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    }
+  ]
+}

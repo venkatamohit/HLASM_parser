@@ -1,0 +1,16 @@
+---
+title: "GO_IN_INLINE Control Flow Graph"
+---
+flowchart TD
+    GO_IN_INLINE["GO_IN_INLINE\nDRIVER"]:::driver
+    EXTPROG1["EXTPROG1"]:::present
+    EXTPROG2["EXTPROG2"]:::present
+    EXTPROG3["EXTPROG3"]:::present
+
+    GO_IN_INLINE -->|"GO\nHLASM_ROOT"| EXTPROG1
+    GO_IN_INLINE -->|"GO\nVALIDATE"| EXTPROG3
+    EXTPROG1 -->|"GO\nEXTPROG1"| EXTPROG2
+
+    classDef driver  fill:#2E86AB,color:#fff,stroke:#1a5276
+    classDef present fill:#27AE60,color:#fff,stroke:#1e8449
+    classDef missing fill:#E74C3C,color:#fff,stroke:#922b21,stroke-dasharray:5 5

@@ -72,6 +72,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Recursively resolve and analyse dependency files",
     )
     p.add_argument(
+        "--cfg",
+        action="store_true",
+        help=(
+            "Generate a Control Flow Graph instead of chunk output. "
+            "Implies --recursive.  Use --cfg-format to choose the output format."
+        ),
+    )
+    p.add_argument(
+        "--cfg-format",
+        choices=["dot", "json", "mermaid"],
+        default="dot",
+        metavar="FMT",
+        help="CFG output format when --cfg is set: dot (default), json, or mermaid",
+    )
+    p.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose (DEBUG) logging",
@@ -122,6 +137,32 @@ def main(argv: list[str] | None = None) -> int:
         external_path=args.external_path,
     )
 
+    # ------------------------------------------------------------------
+    # CFG mode
+    # ------------------------------------------------------------------
+    if args.cfg:
+        from .output.cfg_builder import CFGBuilder
+        results = analysis.analyze_with_dependencies(args.source)
+        builder = CFGBuilder()
+        graph = builder.build(results, args.source)
+        fmt = args.cfg_format
+        if fmt == "dot":
+            output_text = builder.to_dot(graph)
+        elif fmt == "mermaid":
+            output_text = builder.to_mermaid(graph)
+        else:
+            output_text = builder.to_json_str(graph)
+
+        if args.output == "-":
+            print(output_text)
+        else:
+            Path(args.output).write_text(output_text, encoding="utf-8")
+            print(f"CFG written to {args.output}", file=sys.stderr)
+        return 0
+
+    # ------------------------------------------------------------------
+    # Normal chunk-analysis mode
+    # ------------------------------------------------------------------
     if args.recursive:
         results = analysis.analyze_with_dependencies(args.source)
         output_data: object = {

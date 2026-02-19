@@ -1,0 +1,88 @@
+{
+  "driver": "GO_IN_INLINE",
+  "nodes": [
+    {
+      "id": "GO_IN_INLINE",
+      "label": "GO_IN_INLINE",
+      "status": "driver",
+      "color": "#2E86AB",
+      "file_path": "tests/fixtures/go_in_inline.hlasm",
+      "chunk_types": [
+        "CSECT",
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "EXTPROG1",
+      "label": "EXTPROG1",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/EXTPROG1.asm",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "EXTPROG2",
+      "label": "EXTPROG2",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/EXTPROG2.asm",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "EXTPROG3",
+      "label": "EXTPROG3",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/EXTPROG3.asm",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "GO_IN_INLINE",
+      "to": "EXTPROG1",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "HLASM_ROOT"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "GO_IN_INLINE",
+      "to": "EXTPROG3",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "VALIDATE"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "EXTPROG1",
+      "to": "EXTPROG2",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "EXTPROG1"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    }
+  ]
+}
