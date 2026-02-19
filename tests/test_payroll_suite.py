@@ -3,24 +3,24 @@ Integration tests for the payroll sample suite.
 
 Files under test
 ----------------
-fixtures/payroll.hlasm
+fixtures/programs/PAYROLL.asm
     Main driver program.  Contains:
     - Classic BAL subroutines in-file: CALCBASE, PRTREORT
     - GO/IN   subroutines in-file   : INITWS,   VALIDATE
     - External GO calls to          : TAXCALC, DEDUCTNS, RPTWRITE
 
-fixtures/programs/TAXCALC.asm
+fixtures/programs/TAXCALC  (no extension – subroutine / macro convention)
     External tax-calculation module.  Contains:
     - IN entry point          : TAXCALC
     - GO/IN subroutine in-file: APPLYRT
     - External GO call to     : DEDUCTNS
 
-fixtures/programs/DEDUCTNS.asm
+fixtures/programs/DEDUCTNS  (no extension)
     External deductions module (leaf – no external GO).  Contains:
     - IN entry point             : DEDUCTNS
     - GO/IN subroutines in-file  : HLTHDED, RETIRE
 
-fixtures/programs/RPTWRITE.asm
+fixtures/programs/RPTWRITE  (no extension)
     External report-writer module.  Contains:
     - IN entry point          : RPTWRITE
     - GO/IN subroutine in-file: FMTLINE
@@ -61,7 +61,7 @@ def _chunk(chunks, label: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main driver – payroll.hlasm (standalone parse)
+# Main driver – PAYROLL.asm (standalone parse)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -72,7 +72,7 @@ class TestPayrollMainDriver:
 
     @pytest.fixture
     def chunks(self, analysis):
-        return analysis.analyze_file(str(FIXTURES / "payroll.hlasm"))
+        return analysis.analyze_file(str(PROGRAMS / "PAYROLL.asm"))
 
     # --- block presence --------------------------------------------------
 
@@ -160,7 +160,7 @@ class TestPayrollMainDriver:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# External module – TAXCALC.asm
+# External module – TAXCALC  (subroutine, no extension)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -171,7 +171,7 @@ class TestTaxcalcModule:
 
     @pytest.fixture
     def chunks(self, analysis):
-        return analysis.analyze_file(str(PROGRAMS / "TAXCALC.asm"))
+        return analysis.analyze_file(str(PROGRAMS / "TAXCALC"))
 
     def test_taxcalc_entry_present(self, chunks):
         labels = _labels(chunks)
@@ -207,7 +207,7 @@ class TestTaxcalcModule:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# External module – DEDUCTNS.asm  (leaf – no external GO)
+# External module – DEDUCTNS  (subroutine, no extension; leaf – no external GO)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -218,7 +218,7 @@ class TestDeductnsModule:
 
     @pytest.fixture
     def chunks(self, analysis):
-        return analysis.analyze_file(str(PROGRAMS / "DEDUCTNS.asm"))
+        return analysis.analyze_file(str(PROGRAMS / "DEDUCTNS"))
 
     def test_deductns_entry_present(self, chunks):
         assert "DEDUCTNS" in _labels(chunks)
@@ -265,7 +265,7 @@ class TestDeductnsModule:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# External module – RPTWRITE.asm  (mixed BAL + IN + external GO)
+# External module – RPTWRITE  (subroutine, no extension; mixed BAL + IN + external GO)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -276,7 +276,7 @@ class TestRptwriteModule:
 
     @pytest.fixture
     def chunks(self, analysis):
-        return analysis.analyze_file(str(PROGRAMS / "RPTWRITE.asm"))
+        return analysis.analyze_file(str(PROGRAMS / "RPTWRITE"))
 
     def test_rptwrite_entry_present(self, chunks):
         assert "RPTWRITE" in _labels(chunks)
@@ -334,13 +334,13 @@ class TestPayrollWithDependencies:
     @pytest.fixture
     def results(self, analysis):
         return analysis.analyze_with_dependencies(
-            str(FIXTURES / "payroll.hlasm")
+            str(PROGRAMS / "PAYROLL.asm")
         )
 
     # --- root file present -----------------------------------------------
 
     def test_root_file_in_results(self, results):
-        assert str(FIXTURES / "payroll.hlasm") in results
+        assert str(PROGRAMS / "PAYROLL.asm") in results
 
     # --- direct external files resolved ----------------------------------
 
