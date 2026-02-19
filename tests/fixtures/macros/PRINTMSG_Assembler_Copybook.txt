@@ -1,0 +1,7 @@
+         MACRO
+&LABEL   PRINTMSG &MSG,&LEN
+* PRINTMSG macro – write a message to the operator
+         LA    0,&MSG            Load message address
+         LA    1,&LEN            Load message length
+         SVC   35                Issue write-to-operator SVC
+         MEND

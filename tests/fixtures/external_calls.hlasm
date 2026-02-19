@@ -1,0 +1,35 @@
+* ============================================================
+* HLASM PROGRAM WITH EXTERNAL CALL DEPENDENCIES
+* Tests: CALL, LINK, XCTL instructions, dependency tracking
+* ============================================================
+EXTCALL  CSECT
+         STM   14,12,12(13)
+         BALR  12,0
+         USING *,12
+         ST    13,ECSAVE+4
+         LA    13,ECSAVE
+*
+* Call external program via CALL macro
+         LA    1,PARMLIST
+         CALL  SUBPROG1
+*
+* Call another external program via LINK
+         LINK  EP=SUBPROG2
+*
+* Internal subroutine call
+         BAL   14,LOCALRTN
+*
+         L     13,ECSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+* Internal subroutine
+LOCALRTN DS    0H
+         MVC   WRKBUFF,=CL80' '
+         BR    14
+*
+ECSAVE   DC    18F'0'
+PARMLIST DC    A(0)
+WRKBUFF  DS    CL80
+*
+         END   EXTCALL

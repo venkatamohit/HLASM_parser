@@ -1,0 +1,7 @@
+* Test for 72-column truncation – this line has trailing sequence numbers    00000010
+LONGPROG CSECT                                                                  00000020
+         STM   14,12,12(13)     Save all registers                              00000030
+         BALR  12,0             Establish addressability                        00000040
+         USING *,12                                                              00000050
+         BR    14               Return                                          00000060
+         END   LONGPROG                                                         00000070
