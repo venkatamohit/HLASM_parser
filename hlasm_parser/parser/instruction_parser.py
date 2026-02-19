@@ -25,7 +25,7 @@ Instruction type classification:
 |                | BR J JC JE JNE JH JL JNH JNL JZ JNZ JO JNO JM JNM JP   |
 |                | JNP NOP NOPR                                             |
 +----------------+----------------------------------------------------------+
-| CALL           | BAL BALR BAS BASR CALL LINK XCTL                         |
+| CALL           | BAL BALR BAS BASR CALL LINK XCTL GO GOIF GOIFNOT       |
 +----------------+----------------------------------------------------------+
 | SECTION        | CSECT DSECT RSECT COM LOCTR START                        |
 +----------------+----------------------------------------------------------+
@@ -64,6 +64,16 @@ BRANCH_OPCODES: Set[str] = {
 CALL_OPCODES: Set[str] = {
     "BAL", "BALR", "BAS", "BASR",
     "CALL", "LINK", "XCTL",
+    # Shop-specific branch-and-link macro family
+    "GO", "GOIF", "GOIFNOT", "GOEQ", "GONE", "GOGT", "GOLT", "GOGE", "GOLE",
+}
+
+# Subroutine / function entry-point marker opcodes.
+# ``<label>  IN`` marks where a named subroutine body begins.
+# ``<label>  OUT`` (or ``RETURN``) marks normal exit.
+ENTRY_MARKER_OPCODES: Set[str] = {
+    "IN",
+    "OUT",
 }
 
 SECTION_OPCODES: Set[str] = {
@@ -100,6 +110,8 @@ def _classify(opcode: Optional[str]) -> str:
         return "BRANCH"
     if op in CALL_OPCODES:
         return "CALL"
+    if op in ENTRY_MARKER_OPCODES:
+        return "ENTRY_MARKER"
     if op in SECTION_OPCODES:
         return "SECTION"
     if op in DATA_OPCODES:

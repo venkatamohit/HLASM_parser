@@ -79,5 +79,13 @@ STANDARD_MNEMONICS: frozenset[str] = frozenset(
         "FREEBUF", "GETBUF",
         "MODCB", "SHOWCB", "TESTCB",
         "IKJDYNP",
+        # ── Shop-specific GO / IN subroutine-call convention ─────────────
+        # GO target   – branch-and-link to a named subroutine
+        # GOIF/GOIFNOT/GOEQ/GONE/… – conditional variants of GO
+        # IN          – subroutine entry-point marker  (<label> IN)
+        # OUT         – subroutine exit marker         (<label> OUT)
+        "GO", "GOIF", "GOIFNOT",
+        "GOEQ", "GONE", "GOGT", "GOLT", "GOGE", "GOLE",
+        "IN", "OUT",
     }
 )

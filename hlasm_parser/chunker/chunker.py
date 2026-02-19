@@ -29,6 +29,7 @@ from ..models import Chunk, CodeElement, LabelledBlock, ParsedInstruction
 from ..parser.instruction_parser import (
     BRANCH_OPCODES,
     CALL_OPCODES,
+    ENTRY_MARKER_OPCODES,
     InstructionParser,
 )
 
@@ -39,6 +40,14 @@ _EXTERNAL_CALL_OPCODES: Set[str] = {"CALL", "LINK", "XCTL", "LOAD", "DELETE"}
 
 # Opcodes for internal subroutine calls (target is a label in the same file)
 _INTERNAL_CALL_OPCODES: Set[str] = {"BAL", "BALR", "BAS", "BASR"}
+
+# Shop-specific GO family – first operand is the subroutine/program name.
+# GO target         – unconditional call
+# GOIF/GOIFNOT/…    – conditional variants; first operand is still the target
+_GO_OPCODES: Set[str] = {
+    "GO", "GOIF", "GOIFNOT",
+    "GOEQ", "GONE", "GOGT", "GOLT", "GOGE", "GOLE",
+}
 
 # Regex: a token that looks like a symbol / label (not a register or number)
 _SYMBOL_RE = re.compile(r"^[A-Za-z@#$][A-Za-z0-9@#$_]*$")
@@ -107,7 +116,7 @@ class Chunker:
             if parsed is None:
                 continue
 
-            # Infer chunk type from first section opcode encountered
+            # Infer chunk type from first section / entry opcode encountered
             if parsed.opcode:
                 op = parsed.opcode.upper()
                 if op in ("CSECT", "RSECT") and chunk_type == "SUBROUTINE":
@@ -118,6 +127,9 @@ class Chunker:
                     chunk_type = "MACRO"
                 elif op in ("START",) and chunk_type == "SUBROUTINE":
                     chunk_type = "CSECT"
+                elif op == "IN" and chunk_type == "SUBROUTINE":
+                    # Shop convention: <label> IN marks a named subroutine entry.
+                    chunk_type = "ENTRY"
 
             # Collect dependencies
             self._extract_deps(parsed, seen_deps)
@@ -194,6 +206,15 @@ class Chunker:
                     if _is_symbol(target) and not target.startswith("R") and target not in seen:
                         seen[target] = len(seen)
                 # BALR / BASR take register operands – skip
+
+        elif op in _GO_OPCODES:
+            # GO <target>              – unconditional subroutine call
+            # GOIF <target>,<cond>    – conditional; target is first operand
+            # GOIFNOT <target>,<cond> – same pattern
+            if instr.operands:
+                target = _strip_parens(instr.operands[0])
+                if _is_symbol(target) and target not in seen:
+                    seen[target] = len(seen)
 
         elif op in BRANCH_OPCODES and op not in ("BR", "BCR", "NOPR", "NOP"):
             # B LABEL, BE LABEL, etc. – only capture non-register targets
