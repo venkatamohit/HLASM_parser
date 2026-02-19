@@ -15,6 +15,7 @@ Options
 --output, -o          Output file path (default: stdout).
 --format, -f          Output format: ``json`` (default) or ``text``.
 --recursive, -r       Follow and analyse dependency files.
+--split-output, -s    Write one .asm file per chunk into a folder.
 --missing-deps-log    Write unresolved-dependency report to a JSON file.
 --cfg                 Emit a Control Flow Graph instead of chunk output.
 --cfg-format          CFG format: dot (default), json, or mermaid.
@@ -28,6 +29,7 @@ Examples
     python -m hlasm_parser.cli program.asm -c ./macros -f text
     python -m hlasm_parser.cli program.asm -c ./macros -r -o result.json
     python -m hlasm_parser.cli program.asm -e ./pgms -r --missing-deps-log missing.json
+    python -m hlasm_parser.cli program.asm -c ./macros -e ./pgms -s ./my_chunks
 """
 from __future__ import annotations
 
@@ -101,6 +103,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="CFG output format when --cfg is set: dot (default), json, or mermaid",
     )
     p.add_argument(
+        "--split-output", "-s",
+        default="",
+        metavar="DIR",
+        help=(
+            "Write one .asm file per chunk into DIR/<source-stem>/<label>.asm "
+            "instead of producing a single combined output file."
+        ),
+    )
+    p.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose (DEBUG) logging",
@@ -157,6 +168,32 @@ def _format_text(data: object, missing_deps: list[dict] | None = None) -> str:
     return "\n".join(lines)
 
 
+def _write_split_output(results: dict, output_dir: Path) -> None:
+    """Write one .asm file per chunk into output_dir/<source-stem>/<label>.asm."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for file_path, chunks in results.items():
+        stem = Path(file_path).stem
+        dest = output_dir / stem
+        dest.mkdir(parents=True, exist_ok=True)
+        for chunk in chunks:
+            safe_label = chunk.label.replace("/", "_").replace("\\", "_") or "ROOT"
+            out_file = dest / f"{safe_label}.asm"
+            lines = [
+                instr.raw_text
+                for instr in chunk.instructions
+                if instr.raw_text and instr.raw_text.strip()
+            ]
+            header = (
+                f"* CHUNK : {chunk.label}\n"
+                f"* TYPE  : {chunk.chunk_type}\n"
+                f"* SOURCE: {file_path}\n"
+                f"* DEPS  : {', '.join(chunk.dependencies) or '(none)'}\n"
+                f"*{'─' * 66}\n"
+            )
+            out_file.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
+            print(f"  wrote {out_file}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -201,10 +238,16 @@ def main(argv: list[str] | None = None) -> int:
     # ------------------------------------------------------------------
     missing_deps_dicts: list[dict] = []
 
-    if args.recursive:
+    if args.recursive or args.split_output:
         results = analysis.analyze_with_dependencies(args.source)
         missing_deps_dicts = [m.to_dict() for m in analysis.missing_deps]
         _report_missing(analysis, args.missing_deps_log)
+
+        # --split-output: one .asm file per chunk, skip single-file output
+        if args.split_output:
+            _write_split_output(results, Path(args.split_output))
+            return 0
+
         output_data: object = {
             "files": {
                 path: [c.to_dict() for c in chunks]
