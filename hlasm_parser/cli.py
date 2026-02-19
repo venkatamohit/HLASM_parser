@@ -15,6 +15,9 @@ Options
 --output, -o          Output file path (default: stdout).
 --format, -f          Output format: ``json`` (default) or ``text``.
 --recursive, -r       Follow and analyse dependency files.
+--missing-deps-log    Write unresolved-dependency report to a JSON file.
+--cfg                 Emit a Control Flow Graph instead of chunk output.
+--cfg-format          CFG format: dot (default), json, or mermaid.
 --verbose, -v         Enable DEBUG logging.
 
 Examples
@@ -24,6 +27,7 @@ Examples
     python -m hlasm_parser.cli program.asm --copybook-path ./macros
     python -m hlasm_parser.cli program.asm -c ./macros -f text
     python -m hlasm_parser.cli program.asm -c ./macros -r -o result.json
+    python -m hlasm_parser.cli program.asm -e ./pgms -r --missing-deps-log missing.json
 """
 from __future__ import annotations
 
@@ -72,6 +76,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Recursively resolve and analyse dependency files",
     )
     p.add_argument(
+        "--missing-deps-log",
+        default="",
+        metavar="FILE",
+        help=(
+            "Write unresolved dependency details to FILE as JSON. "
+            "Chunk creation continues for all found files regardless of this flag; "
+            "missing dependencies are always shown in the output."
+        ),
+    )
+    p.add_argument(
         "--cfg",
         action="store_true",
         help=(
@@ -94,7 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _format_text(data: object) -> str:
+def _format_text(data: object, missing_deps: list[dict] | None = None) -> str:
     lines: list[str] = []
 
     def _render_chunks(chunk_list: list[dict]) -> None:
@@ -112,12 +126,33 @@ def _format_text(data: object) -> str:
                 operands = ", ".join(instr["operands"])
                 lines.append(f"    {op:<8} {operands}")
 
+    # Render chunk sections (files dict or flat list)
     if isinstance(data, dict):
-        for path, chunk_list in data.items():
+        files = data.get("files", data)  # support both wrapped and legacy format
+        for path, chunk_list in files.items():
             lines.append(f"\n{'═'*60}\n  File: {path}\n{'═'*60}")
             _render_chunks(chunk_list)
     else:
         _render_chunks(data)  # type: ignore[arg-type]
+
+    # Missing dependency section (always shown when present)
+    deps = missing_deps or (data.get("missing_dependencies") if isinstance(data, dict) else None) or []
+    if deps:
+        lines.append(f"\n{'═'*60}")
+        lines.append(f"  MISSING DEPENDENCIES ({len(deps)} unresolved)")
+        lines.append(f"{'═'*60}")
+        lines.append(f"  {'SYMBOL':<20}  {'CHUNK':<20}  SOURCE FILE")
+        lines.append(f"  {'─'*20}  {'─'*20}  {'─'*30}")
+        for d in deps:
+            fname = Path(d["referenced_from_file"]).name
+            lines.append(
+                f"  {d['dep_name']:<20}  {d['referenced_in_chunk']:<20}  {fname}"
+            )
+        lines.append(
+            f"\n  Chunks for all FOUND files were created normally."
+            f"\n  The symbols above could not be resolved"
+            + (f" in: {deps[0]['search_path']}" if deps[0]["search_path"] else ".")
+        )
 
     return "\n".join(lines)
 
@@ -143,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cfg:
         from .output.cfg_builder import CFGBuilder
         results = analysis.analyze_with_dependencies(args.source)
+        _report_missing(analysis, args.missing_deps_log)
         builder = CFGBuilder()
         graph = builder.build(results, args.source)
         fmt = args.cfg_format
@@ -163,11 +199,18 @@ def main(argv: list[str] | None = None) -> int:
     # ------------------------------------------------------------------
     # Normal chunk-analysis mode
     # ------------------------------------------------------------------
+    missing_deps_dicts: list[dict] = []
+
     if args.recursive:
         results = analysis.analyze_with_dependencies(args.source)
+        missing_deps_dicts = [m.to_dict() for m in analysis.missing_deps]
+        _report_missing(analysis, args.missing_deps_log)
         output_data: object = {
-            path: [c.to_dict() for c in chunks]
-            for path, chunks in results.items()
+            "files": {
+                path: [c.to_dict() for c in chunks]
+                for path, chunks in results.items()
+            },
+            "missing_dependencies": missing_deps_dicts,
         }
     else:
         chunks = analysis.analyze_file(args.source)
@@ -185,6 +228,33 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Output written to {args.output}", file=sys.stderr)
 
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Helper: report missing deps to stderr + optional log file
+# ---------------------------------------------------------------------------
+
+def _report_missing(analysis: HlasmAnalysis, log_file: str) -> None:
+    """Print missing-dep summary to stderr and optionally write a JSON log."""
+    missing = analysis.missing_deps
+    if not missing:
+        return
+
+    print(
+        f"\nWARNING: {len(missing)} unresolved dependenc"
+        f"{'y' if len(missing) == 1 else 'ies'} (chunks created for all found files):",
+        file=sys.stderr,
+    )
+    for m in missing:
+        print(f"  [MISSING] {m}", file=sys.stderr)
+
+    if log_file:
+        log_data = {
+            "unresolved_count": len(missing),
+            "missing_dependencies": [m.to_dict() for m in missing],
+        }
+        Path(log_file).write_text(json.dumps(log_data, indent=2), encoding="utf-8")
+        print(f"  Missing-dep log written to: {log_file}", file=sys.stderr)
 
 
 if __name__ == "__main__":

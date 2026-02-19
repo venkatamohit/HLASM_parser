@@ -6,6 +6,7 @@ Mirrors the domain model from tape-z (Java) translated to Python dataclasses.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -108,6 +109,39 @@ class ParsedInstruction:
             "instruction_type": self.instruction_type,
             "raw_text": self.raw_text,
         }
+
+
+# ---------------------------------------------------------------------------
+# Missing dependency record
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MissingDependency:
+    """
+    A dependency symbol that could not be resolved to a source file.
+
+    Collected by :class:`~hlasm_parser.pipeline.hlasm_analysis.HlasmAnalysis`
+    during recursive analysis and exposed via ``analysis.missing_deps``.
+    """
+
+    dep_name: str              # Symbol referenced (e.g. "SUBPROG1")
+    referenced_from_file: str  # Source file that contains the reference
+    referenced_in_chunk: str   # Label of the chunk making the call
+    search_path: str           # Directory that was searched (empty if none)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "dep_name": self.dep_name,
+            "referenced_from_file": self.referenced_from_file,
+            "referenced_in_chunk": self.referenced_in_chunk,
+            "search_path": self.search_path,
+        }
+
+    def __str__(self) -> str:
+        loc = f"{self.referenced_in_chunk} in {Path(self.referenced_from_file).name}"
+        hint = f" (searched: {self.search_path})" if self.search_path else ""
+        return f"{self.dep_name:<20} referenced from {loc}{hint}"
 
 
 # ---------------------------------------------------------------------------
