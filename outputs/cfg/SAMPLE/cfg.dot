@@ -1,0 +1,23 @@
+digraph "SAMPLE_CFG" {
+    label="SAMPLE – Control Flow Graph";
+    labelloc=t;
+    rankdir=TB;
+    compound=true;
+    node [fontname="Courier New", fontsize=11, margin="0.2,0.1"];
+    edge [fontname="Courier New", fontsize=9];
+
+    subgraph cluster_legend {
+        label="Legend"; style=dashed; color="#AAAAAA";
+        fontname="Courier New"; fontsize=9;
+        L_driver  [label="Driver\n(entry point)", shape=doubleoctagon, style=filled, fillcolor="#2E86AB", fontcolor=white, fontsize=9];
+        L_present [label="Present\n(file found)",   shape=box, style=filled, fillcolor="#27AE60", fontcolor=white, fontsize=9];
+        L_missing [label="Missing\n(not found)",   shape=box, style="filled,dashed", fillcolor="#E74C3C", fontcolor=white, fontsize=9];
+        L_driver -> L_present [style=invis];
+        L_present -> L_missing [style=invis];
+    }
+
+    "SAMPLE" [label="SAMPLE\n[DRIVER]\nCSECT, SUBROUTINE", shape=doubleoctagon, style="filled", fillcolor="#2E86AB", fontcolor="white"];
+    "P2NOMATCH" [label="P2NOMATCH\n[NOT FOUND]", shape=box, style="filled,dashed", fillcolor="#E74C3C", fontcolor="white"];
+
+    "SAMPLE" -> "P2NOMATCH" [label="B\n(PROCESS2)", color="#E74C3C", style=dashed];
+}

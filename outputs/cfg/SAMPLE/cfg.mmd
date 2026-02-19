@@ -1,0 +1,12 @@
+---
+title: "SAMPLE Control Flow Graph"
+---
+flowchart TD
+    SAMPLE["SAMPLE\nDRIVER"]:::driver
+    P2NOMATCH["P2NOMATCH\nNOT FOUND"]:::missing
+
+    SAMPLE -.->|"B\nPROCESS2"| P2NOMATCH
+
+    classDef driver  fill:#2E86AB,color:#fff,stroke:#1a5276
+    classDef present fill:#27AE60,color:#fff,stroke:#1e8449
+    classDef missing fill:#E74C3C,color:#fff,stroke:#922b21,stroke-dasharray:5 5

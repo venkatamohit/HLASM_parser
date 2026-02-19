@@ -1,0 +1,12 @@
+---
+title: "EXTPROG1 Control Flow Graph"
+---
+flowchart TD
+    EXTPROG1["EXTPROG1\nDRIVER"]:::driver
+    EXTPROG2["EXTPROG2"]:::present
+
+    EXTPROG1 -->|"GO\nEXTPROG1"| EXTPROG2
+
+    classDef driver  fill:#2E86AB,color:#fff,stroke:#1a5276
+    classDef present fill:#27AE60,color:#fff,stroke:#1e8449
+    classDef missing fill:#E74C3C,color:#fff,stroke:#922b21,stroke-dasharray:5 5

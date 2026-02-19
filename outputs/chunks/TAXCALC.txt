@@ -1,0 +1,105 @@
+
+────────────────────────────────────────────────────────────
+  Label : TAXCALC
+  Type  : ENTRY
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 11
+  Deps  : TAXHI, TAXAPPLY
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, TCSAVE+4
+    LA       13, TCSAVE
+    L        2, BASEPAY
+    C        2, =F'50000'
+    BH       TAXHI
+    MVC      TAXRATE, =F'20'
+    B        TAXAPPLY
+
+────────────────────────────────────────────────────────────
+  Label : TAXHI
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 2
+  Deps  : (none)
+    DS       0H
+    MVC      TAXRATE, =F'40'
+
+────────────────────────────────────────────────────────────
+  Label : TAXAPPLY
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 10
+  Deps  : APPLYRT, DEDUCTNS
+    DS       0H
+    GO       APPLYRT
+    GO       DEDUCTNS
+    L        3, BASEPAY
+    S        3, TAXAMT
+    S        3, DEDAMT
+    ST       3, NETPAY
+    L        13, TCSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : TCSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : TAXRATE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : TAXAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : DEDAMT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 1
+  Deps  : (none)
+    DS       F
+
+────────────────────────────────────────────────────────────
+  Label : APPLYRT
+  Type  : ENTRY
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 13
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, ARSAVE+4
+    LA       13, ARSAVE
+    L        2, BASEPAY
+    M        2, TAXRATE
+    D        2, =F'100'
+    ST       3, TAXAMT
+    L        13, ARSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : ARSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/programs/TAXCALC
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      TAXCALC

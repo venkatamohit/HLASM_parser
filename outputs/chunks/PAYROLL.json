@@ -1,0 +1,1114 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 18,
+    "dependencies": [
+      "INITWS",
+      "VALIDATE",
+      "CALCBASE",
+      "TAXCALC",
+      "DEDUCTNS",
+      "PRTREORT",
+      "RPTWRITE"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": "Save all registers",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)     Save all registers"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": "Establish base register",
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0             Establish base register"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "PAYSAVE+4"
+        ],
+        "comment": "Chain save areas",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,PAYSAVE+4     Chain save areas"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "PAYSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,PAYSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "INITWS"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    INITWS"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "VALIDATE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    VALIDATE"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "EMPREC"
+        ],
+        "comment": "Load employee record address",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,EMPREC         Load employee record address"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "CALCBASE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,CALCBASE"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "TAXCALC"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    TAXCALC"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "DEDUCTNS"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    DEDUCTNS"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "OUTBUFF"
+        ],
+        "comment": "Load output buffer address",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,OUTBUFF        Load output buffer address"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "PRTREORT"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,PRTREORT"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "RPTWRITE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    RPTWRITE"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "PAYSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,PAYSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PAYSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "EMPREC",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL80"
+        ],
+        "comment": "Employee record buffer",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL80             Employee record buffer"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "OUTBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL133"
+        ],
+        "comment": "Report output line (ASA)",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL133            Report output line (ASA)"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PAYFLAG",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "X"
+        ],
+        "comment": "Processing flags",
+        "instruction_type": "DATA",
+        "raw_text": "DS    X                Processing flags"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "BASEPAY",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": "Base pay amount",
+        "instruction_type": "DATA",
+        "raw_text": "DS    F                Base pay amount"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "NETPAY",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": "Net pay after deductions",
+        "instruction_type": "DATA",
+        "raw_text": "DS    F                Net pay after deductions"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "CALCBASE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 12,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "CBSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,CBSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "CBSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,CBSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "2",
+          "0(1)"
+        ],
+        "comment": "Load hours-worked field",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     2,0(1)           Load hours-worked field"
+      },
+      {
+        "label": null,
+        "opcode": "M",
+        "operands": [
+          "2",
+          "=F'1000'"
+        ],
+        "comment": "Multiply by hourly rate (cents)",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "M     2,=F'1000'       Multiply by hourly rate (cents)"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "BASEPAY"
+        ],
+        "comment": "Store base pay result",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,BASEPAY        Store base pay result"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "PAYFLAG",
+          "X'01'"
+        ],
+        "comment": "Mark pay calculated",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   PAYFLAG,X'01'   Mark pay calculated"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "CBSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,CBSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "CBSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PRTREORT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 13,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "PRSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,PRSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "PRSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,PRSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "0(133,1)",
+          "=CL133' '"
+        ],
+        "comment": "Clear output line",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   0(133,1),=CL133' '    Clear output line"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "1(80,1)",
+          "EMPREC"
+        ],
+        "comment": "Copy employee data",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   1(80,1),EMPREC         Copy employee data"
+      },
+      {
+        "label": null,
+        "opcode": "CVD",
+        "operands": [
+          "3",
+          "WORKDBL"
+        ],
+        "comment": "Convert pay to packed",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CVD   3,WORKDBL              Convert pay to packed"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "50(12,1)",
+          "=X'402020206B2020206B202060'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   50(12,1),=X'402020206B2020206B202060'"
+      },
+      {
+        "label": null,
+        "opcode": "ED",
+        "operands": [
+          "50(12,1)",
+          "WORKDBL+3"
+        ],
+        "comment": "Edit pay amount",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ED    50(12,1),WORKDBL+3     Edit pay amount"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "PRSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,PRSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PRSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WORKDBL",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "D"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    D"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "INITWS",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 14,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "IWSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,IWSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "IWSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,IWSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "EMPREC",
+          "=CL80' '"
+        ],
+        "comment": "Clear employee record",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   EMPREC,=CL80' '      Clear employee record"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF",
+          "=CL133' '"
+        ],
+        "comment": "Clear output line",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF,=CL133' '    Clear output line"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "PAYFLAG",
+          "X'00'"
+        ],
+        "comment": "Clear flags",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   PAYFLAG,X'00'        Clear flags"
+      },
+      {
+        "label": null,
+        "opcode": "XC",
+        "operands": [
+          "BASEPAY",
+          "BASEPAY"
+        ],
+        "comment": "Zero base pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "XC    BASEPAY,BASEPAY      Zero base pay"
+      },
+      {
+        "label": null,
+        "opcode": "XC",
+        "operands": [
+          "NETPAY",
+          "NETPAY"
+        ],
+        "comment": "Zero net pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "XC    NETPAY,NETPAY        Zero net pay"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "IWSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,IWSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "IWSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALIDATE",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 12,
+    "dependencies": [
+      "VALERR",
+      "VALOK"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "VLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,VLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "VLSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,VLSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "CLC",
+        "operands": [
+          "EMPREC(8)",
+          "=CL8' '"
+        ],
+        "comment": "Check if employee ID blank",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CLC   EMPREC(8),=CL8' '   Check if employee ID blank"
+      },
+      {
+        "label": null,
+        "opcode": "BE",
+        "operands": [
+          "VALERR"
+        ],
+        "comment": "Error if blank",
+        "instruction_type": "BRANCH",
+        "raw_text": "BE    VALERR               Error if blank"
+      },
+      {
+        "label": null,
+        "opcode": "CLC",
+        "operands": [
+          "EMPREC+8(4)",
+          "=F'0'"
+        ],
+        "comment": "Check hours > 0",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CLC   EMPREC+8(4),=F'0'   Check hours > 0"
+      },
+      {
+        "label": null,
+        "opcode": "BNH",
+        "operands": [
+          "VALERR"
+        ],
+        "comment": "Error if zero or negative",
+        "instruction_type": "BRANCH",
+        "raw_text": "BNH   VALERR               Error if zero or negative"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "PAYFLAG",
+          "X'02'"
+        ],
+        "comment": "Mark record valid",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   PAYFLAG,X'02'        Mark record valid"
+      },
+      {
+        "label": null,
+        "opcode": "B",
+        "operands": [
+          "VALOK"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "B     VALOK"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALERR",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "PAYFLAG",
+          "X'FF'"
+        ],
+        "comment": "Mark record invalid",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   PAYFLAG,X'FF'        Mark record invalid"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VALOK",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 4,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "VLSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,VLSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "VLSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/PAYROLL.asm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "PAYROLL"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   PAYROLL"
+      }
+    ],
+    "metadata": {}
+  }
+]

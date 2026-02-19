@@ -1,0 +1,18 @@
+---
+title: "PAYROLL Control Flow Graph"
+---
+flowchart TD
+    PAYROLL["PAYROLL\nDRIVER"]:::driver
+    TAXCALC["TAXCALC"]:::present
+    DEDUCTNS["DEDUCTNS"]:::present
+    RPTWRITE["RPTWRITE"]:::present
+
+    PAYROLL -->|"GO\nHLASM_ROOT"| DEDUCTNS
+    PAYROLL -->|"GO\nHLASM_ROOT"| RPTWRITE
+    PAYROLL -->|"GO\nHLASM_ROOT"| TAXCALC
+    RPTWRITE -->|"GO\nRPTWRITE"| TAXCALC
+    TAXCALC -->|"GO\nTAXAPPLY"| DEDUCTNS
+
+    classDef driver  fill:#2E86AB,color:#fff,stroke:#1a5276
+    classDef present fill:#27AE60,color:#fff,stroke:#1e8449
+    classDef missing fill:#E74C3C,color:#fff,stroke:#922b21,stroke-dasharray:5 5

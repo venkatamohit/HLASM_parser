@@ -1,0 +1,635 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 14,
+    "dependencies": [
+      "PROCESS1",
+      "PROCESS2"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "CSECT,",
+        "operands": [
+          "labeled"
+        ],
+        "comment": "blocks, BAL subroutine calls, data areas",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CSECT, labeled blocks, BAL subroutine calls, data areas"
+      },
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": "Save all registers",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)     Save all registers"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": "Establish base register",
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0             Establish base register"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "SAVEAREA+4"
+        ],
+        "comment": "Save caller's save area address",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,SAVEAREA+4    Save caller's save area address"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "SAVEAREA"
+        ],
+        "comment": "Point to our save area",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,SAVEAREA      Point to our save area"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "INPUTPARM"
+        ],
+        "comment": "Load parameter address",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,INPUTPARM      Load parameter address"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "PROCESS1"
+        ],
+        "comment": "Call processing routine 1",
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,PROCESS1      Call processing routine 1"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "INPUTPARM"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,INPUTPARM"
+      },
+      {
+        "label": null,
+        "opcode": "BAL",
+        "operands": [
+          "14",
+          "PROCESS2"
+        ],
+        "comment": "Call processing routine 2",
+        "instruction_type": "CALL",
+        "raw_text": "BAL   14,PROCESS2      Call processing routine 2"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "SAVEAREA+4"
+        ],
+        "comment": "Restore caller's save area",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,SAVEAREA+4    Restore caller's save area"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": "Restore all registers",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)     Restore all registers"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": "Return to caller",
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14               Return to caller"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "SAVEAREA",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": "18 fullwords for register save area",
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'           18 fullwords for register save area"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "INPUTPAR",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "M",
+        "operands": [
+          "DC"
+        ],
+        "comment": "CL8'TESTDATA'   Input parameter area",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "M DC   CL8'TESTDATA'   Input parameter area"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "OUTBUFF",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL80"
+        ],
+        "comment": "Output buffer (80 bytes)",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL80             Output buffer (80 bytes)"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PROCESS1",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 11,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "P1SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,P1SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "P1SAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,P1SAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "OUTBUFF",
+          "INPUTPARM"
+        ],
+        "comment": "Copy input to output",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   OUTBUFF,INPUTPARM   Copy input to output"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "0",
+          "OUTBUFF"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    0,OUTBUFF"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "1",
+          "80"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    1,80"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "P1SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,P1SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "P1SAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PROCESS2",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 8,
+    "dependencies": [
+      "P2MATCH",
+      "P2NOMATCH"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "P2SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,P2SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "P2SAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,P2SAVE"
+      },
+      {
+        "label": null,
+        "opcode": "CLC",
+        "operands": [
+          "INPUTPARM",
+          "=CL8'TESTDATA'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "CLC   INPUTPARM,=CL8'TESTDATA'"
+      },
+      {
+        "label": null,
+        "opcode": "BE",
+        "operands": [
+          "P2MATCH"
+        ],
+        "comment": "Branch if equal",
+        "instruction_type": "BRANCH",
+        "raw_text": "BE    P2MATCH              Branch if equal"
+      },
+      {
+        "label": null,
+        "opcode": "B",
+        "operands": [
+          "P2NOMATCH"
+        ],
+        "comment": "Branch if not equal",
+        "instruction_type": "BRANCH",
+        "raw_text": "B     P2NOMATCH            Branch if not equal"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "P2MATCH",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 3,
+    "dependencies": [
+      "P2EXIT"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "OUTBUFF",
+          "C'Y'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   OUTBUFF,C'Y'"
+      },
+      {
+        "label": null,
+        "opcode": "B",
+        "operands": [
+          "P2EXIT"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "B     P2EXIT"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "P2NOMATC",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "H",
+        "operands": [
+          "DS"
+        ],
+        "comment": "0H",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "H DS   0H"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "OUTBUFF",
+          "C'N'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   OUTBUFF,C'N'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "P2EXIT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 4,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "P2SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,P2SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "P2SAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "MAINPROG"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   MAINPROG"
+      }
+    ],
+    "metadata": {}
+  }
+]

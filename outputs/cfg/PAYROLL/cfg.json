@@ -1,0 +1,112 @@
+{
+  "driver": "PAYROLL",
+  "nodes": [
+    {
+      "id": "PAYROLL",
+      "label": "PAYROLL",
+      "status": "driver",
+      "color": "#2E86AB",
+      "file_path": "tests/fixtures/programs/PAYROLL.asm",
+      "chunk_types": [
+        "CSECT",
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "TAXCALC",
+      "label": "TAXCALC",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/TAXCALC",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "DEDUCTNS",
+      "label": "DEDUCTNS",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/DEDUCTNS",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "RPTWRITE",
+      "label": "RPTWRITE",
+      "status": "present",
+      "color": "#27AE60",
+      "file_path": "tests/fixtures/programs/RPTWRITE",
+      "chunk_types": [
+        "ENTRY",
+        "SUBROUTINE"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "PAYROLL",
+      "to": "DEDUCTNS",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "HLASM_ROOT"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "PAYROLL",
+      "to": "RPTWRITE",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "HLASM_ROOT"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "PAYROLL",
+      "to": "TAXCALC",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "HLASM_ROOT"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "RPTWRITE",
+      "to": "TAXCALC",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "RPTWRITE"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    },
+    {
+      "from": "TAXCALC",
+      "to": "DEDUCTNS",
+      "call_types": [
+        "GO"
+      ],
+      "from_chunks": [
+        "TAXAPPLY"
+      ],
+      "to_status": "present",
+      "color": "#444444"
+    }
+  ]
+}

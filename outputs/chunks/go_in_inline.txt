@@ -1,0 +1,174 @@
+
+────────────────────────────────────────────────────────────
+  Label : HLASM_ROOT
+  Type  : CSECT
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 11
+  Deps  : VALIDATE, TRANSFM, CLEANUP, EXTPROG1
+    CSECT    
+    BALR     12, 0
+    USING    *, 12
+    MVC      WRKNAME, =CL20' '
+    MVI      WRKFLAG, X'00'
+    GO       VALIDATE
+    GO       TRANSFM
+    TM       WRKFLAG, X'01'
+    GOIF     CLEANUP
+    GO       EXTPROG1
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : WRKNAME
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL20
+
+────────────────────────────────────────────────────────────
+  Label : WRKFLAG
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       X
+
+────────────────────────────────────────────────────────────
+  Label : WRKBUFF
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL80
+
+────────────────────────────────────────────────────────────
+  Label : VALIDATE
+  Type  : ENTRY
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 11
+  Deps  : VALERR, EXTPROG3, VALOK
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, VALSAVE+4
+    LA       13, VALSAVE
+    CLC      WRKNAME, =CL20' '
+    BE       VALERR
+    MVI      WRKFLAG, X'01'
+    GO       EXTPROG3
+    B        VALOK
+
+────────────────────────────────────────────────────────────
+  Label : VALERR
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    MVI      WRKFLAG, X'FF'
+
+────────────────────────────────────────────────────────────
+  Label : VALOK
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, VALSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : VALSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : TRANSFM
+  Type  : ENTRY
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 11
+  Deps  : FMTNAME
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, TRSAVE+4
+    LA       13, TRSAVE
+    GO       FMTNAME
+    MVC      WRKBUFF, WRKNAME
+    L        13, TRSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : TRSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : FMTNAME
+  Type  : ENTRY
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 10
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, FNSAVE+4
+    LA       13, FNSAVE
+    TR       WRKNAME, UPRTAB
+    L        13, FNSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : FNSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : UPRTAB
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL256
+
+────────────────────────────────────────────────────────────
+  Label : CLEANUP
+  Type  : ENTRY
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 12
+  Deps  : (none)
+    IN       
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, CLSAVE+4
+    LA       13, CLSAVE
+    MVC      WRKBUFF, =CL80' '
+    MVC      WRKNAME, =CL20' '
+    MVI      WRKFLAG, X'00'
+    L        13, CLSAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : CLSAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/go_in_inline.hlasm
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      MAINPROG

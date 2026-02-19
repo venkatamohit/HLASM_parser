@@ -1,0 +1,125 @@
+
+────────────────────────────────────────────────────────────
+  Label : HLASM_ROOT
+  Type  : CSECT
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 14
+  Deps  : PROCESS1, PROCESS2
+    CSECT,   labeled
+    CSECT    
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, SAVEAREA+4
+    LA       13, SAVEAREA
+    LA       1, INPUTPARM
+    BAL      14, PROCESS1
+    LA       1, INPUTPARM
+    BAL      14, PROCESS2
+    L        13, SAVEAREA+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : SAVEAREA
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : INPUTPAR
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 1
+  Deps  : (none)
+    M        DC
+
+────────────────────────────────────────────────────────────
+  Label : OUTBUFF
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DS       CL80
+
+────────────────────────────────────────────────────────────
+  Label : PROCESS1
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 11
+  Deps  : (none)
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, P1SAVE+4
+    LA       13, P1SAVE
+    MVC      OUTBUFF, INPUTPARM
+    LA       0, OUTBUFF
+    LA       1, 80
+    L        13, P1SAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : P1SAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 1
+  Deps  : (none)
+    DC       18F'0'
+
+────────────────────────────────────────────────────────────
+  Label : PROCESS2
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 8
+  Deps  : P2MATCH, P2NOMATCH
+    STM      14, 12, 12(13)
+    BALR     12, 0
+    USING    *, 12
+    ST       13, P2SAVE+4
+    LA       13, P2SAVE
+    CLC      INPUTPARM, =CL8'TESTDATA'
+    BE       P2MATCH
+    B        P2NOMATCH
+
+────────────────────────────────────────────────────────────
+  Label : P2MATCH
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 3
+  Deps  : P2EXIT
+    DS       0H
+    MVI      OUTBUFF, C'Y'
+    B        P2EXIT
+
+────────────────────────────────────────────────────────────
+  Label : P2NOMATC
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 2
+  Deps  : (none)
+    H        DS
+    MVI      OUTBUFF, C'N'
+
+────────────────────────────────────────────────────────────
+  Label : P2EXIT
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 4
+  Deps  : (none)
+    DS       0H
+    L        13, P2SAVE+4
+    LM       14, 12, 12(13)
+    BR       14
+
+────────────────────────────────────────────────────────────
+  Label : P2SAVE
+  Type  : SUBROUTINE
+  File  : tests/fixtures/sample.hlasm
+  Instrs: 2
+  Deps  : (none)
+    DC       18F'0'
+    END      MAINPROG

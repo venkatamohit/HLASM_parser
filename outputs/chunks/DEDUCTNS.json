@@ -1,0 +1,705 @@
+[
+  {
+    "label": "DEDUCTNS",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 12,
+    "dependencies": [
+      "HLTHDED",
+      "RETIRE"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "DDSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,DDSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "DDSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,DDSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "XC",
+        "operands": [
+          "DEDAMT",
+          "DEDAMT"
+        ],
+        "comment": "Zero deduction accumulator",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "XC    DEDAMT,DEDAMT        Zero deduction accumulator"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "HLTHDED"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    HLTHDED"
+      },
+      {
+        "label": null,
+        "opcode": "GO",
+        "operands": [
+          "RETIRE"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "GO    RETIRE"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "DDSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,DDSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "DDSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "DEDAMT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": "Total deductions accumulator",
+        "instruction_type": "DATA",
+        "raw_text": "DS    F                Total deductions accumulator"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HLTAMT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": "Health deduction amount",
+        "instruction_type": "DATA",
+        "raw_text": "DS    F                Health deduction amount"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "RETAMT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "F"
+        ],
+        "comment": "Retirement deduction amount",
+        "instruction_type": "DATA",
+        "raw_text": "DS    F                Retirement deduction amount"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HLTHDED",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 14,
+    "dependencies": [
+      "HHLTEXIT"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "HHSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,HHSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "HHSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,HHSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "TM",
+        "operands": [
+          "PAYFLAG",
+          "X'02'"
+        ],
+        "comment": "Check valid record flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "TM    PAYFLAG,X'02'    Check valid record flag"
+      },
+      {
+        "label": null,
+        "opcode": "BNO",
+        "operands": [
+          "HHLTEXIT"
+        ],
+        "comment": "Skip if record not valid",
+        "instruction_type": "BRANCH",
+        "raw_text": "BNO   HHLTEXIT         Skip if record not valid"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "2",
+          "BASEPAY"
+        ],
+        "comment": "Load gross pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     2,BASEPAY        Load gross pay"
+      },
+      {
+        "label": null,
+        "opcode": "M",
+        "operands": [
+          "2",
+          "=F'3'"
+        ],
+        "comment": "Multiply by 3",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "M     2,=F'3'          Multiply by 3"
+      },
+      {
+        "label": null,
+        "opcode": "D",
+        "operands": [
+          "2",
+          "=F'100'"
+        ],
+        "comment": "Divide by 100",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "D     2,=F'100'        Divide by 100"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "HLTAMT"
+        ],
+        "comment": "Store health amount",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,HLTAMT         Store health amount"
+      },
+      {
+        "label": null,
+        "opcode": "A",
+        "operands": [
+          "3",
+          "DEDAMT"
+        ],
+        "comment": "Add to total deductions",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "A     3,DEDAMT         Add to total deductions"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "DEDAMT"
+        ],
+        "comment": "Store updated total",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,DEDAMT         Store updated total"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HHLTEXIT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 4,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "HHSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,HHSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "HHSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "RETIRE",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 14,
+    "dependencies": [
+      "RTEXIT"
+    ],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "RTSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,RTSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "RTSAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,RTSAVE"
+      },
+      {
+        "label": null,
+        "opcode": "TM",
+        "operands": [
+          "PAYFLAG",
+          "X'02'"
+        ],
+        "comment": "Check valid record flag",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "TM    PAYFLAG,X'02'    Check valid record flag"
+      },
+      {
+        "label": null,
+        "opcode": "BNO",
+        "operands": [
+          "RTEXIT"
+        ],
+        "comment": "Skip if not valid",
+        "instruction_type": "BRANCH",
+        "raw_text": "BNO   RTEXIT           Skip if not valid"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "2",
+          "BASEPAY"
+        ],
+        "comment": "Load gross pay",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     2,BASEPAY        Load gross pay"
+      },
+      {
+        "label": null,
+        "opcode": "M",
+        "operands": [
+          "2",
+          "=F'5'"
+        ],
+        "comment": "Multiply by 5",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "M     2,=F'5'          Multiply by 5"
+      },
+      {
+        "label": null,
+        "opcode": "D",
+        "operands": [
+          "2",
+          "=F'100'"
+        ],
+        "comment": "Divide by 100",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "D     2,=F'100'        Divide by 100"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "RETAMT"
+        ],
+        "comment": "Store retirement amount",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,RETAMT         Store retirement amount"
+      },
+      {
+        "label": null,
+        "opcode": "A",
+        "operands": [
+          "3",
+          "DEDAMT"
+        ],
+        "comment": "Add to total deductions",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "A     3,DEDAMT         Add to total deductions"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "3",
+          "DEDAMT"
+        ],
+        "comment": "Store updated total",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    3,DEDAMT         Store updated total"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "RTEXIT",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 4,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "0H"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    0H"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "RTSAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,RTSAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "RTSAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/DEDUCTNS",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "DEDUCTNS"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   DEDUCTNS"
+      }
+    ],
+    "metadata": {}
+  }
+]

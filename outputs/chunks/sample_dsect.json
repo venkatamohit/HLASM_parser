@@ -1,0 +1,301 @@
+[
+  {
+    "label": "HLASM_ROOT",
+    "chunk_type": "CSECT",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 16,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "PROGRAM",
+        "operands": [
+          "WITH"
+        ],
+        "comment": "DSECT AND CSECT",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "PROGRAM WITH DSECT AND CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "MULTIPLE",
+        "operands": [
+          "section"
+        ],
+        "comment": "types, DSECT mapping",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "multiple section types, DSECT mapping"
+      },
+      {
+        "label": null,
+        "opcode": "CSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "CSECT"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "PMSVAREA+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,PMSVAREA+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "PMSVAREA"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,PMSVAREA"
+      },
+      {
+        "label": null,
+        "opcode": "ORAGE",
+        "operands": [
+          "for"
+        ],
+        "comment": "work area and map it with DSECT",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "orage for work area and map it with DSECT"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "2",
+          "WORKAREA"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    2,WORKAREA"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "WORKMAPD",
+          "2"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING WORKMAPD,2"
+      },
+      {
+        "label": null,
+        "opcode": "MVC",
+        "operands": [
+          "WRK_NAME",
+          "=CL20'DEFAULT NAME'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVC   WRK_NAME,=CL20'DEFAULT NAME'"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "WRK_FLAG",
+          "X'01'"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   WRK_FLAG,X'01'"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "PMSVAREA+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,PMSVAREA+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "PMSVAREA",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WORKAREA",
+    "chunk_type": "DSECT",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL100"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL100"
+      },
+      {
+        "label": null,
+        "opcode": "DSECT",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "SECTION",
+        "raw_text": "DSECT"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRK_NAME",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "CL20"
+        ],
+        "comment": "20-char name field",
+        "instruction_type": "DATA",
+        "raw_text": "DS    CL20             20-char name field"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRK_FLAG",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "X"
+        ],
+        "comment": "1-byte flag",
+        "instruction_type": "DATA",
+        "raw_text": "DS    X                1-byte flag"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "WRK_LEN",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/sample_dsect.hlasm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "EQU",
+        "operands": [
+          "*-WORKMAPD"
+        ],
+        "comment": "Length of work area",
+        "instruction_type": "DATA",
+        "raw_text": "EQU   *-WORKMAPD       Length of work area"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "PROGMAIN"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   PROGMAIN"
+      }
+    ],
+    "metadata": {}
+  }
+]

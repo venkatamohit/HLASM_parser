@@ -1,0 +1,38 @@
+{
+  "driver": "SAMPLE",
+  "nodes": [
+    {
+      "id": "SAMPLE",
+      "label": "SAMPLE",
+      "status": "driver",
+      "color": "#2E86AB",
+      "file_path": "tests/fixtures/sample.hlasm",
+      "chunk_types": [
+        "CSECT",
+        "SUBROUTINE"
+      ]
+    },
+    {
+      "id": "P2NOMATCH",
+      "label": "P2NOMATCH",
+      "status": "missing",
+      "color": "#E74C3C",
+      "file_path": "",
+      "chunk_types": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "SAMPLE",
+      "to": "P2NOMATCH",
+      "call_types": [
+        "B"
+      ],
+      "from_chunks": [
+        "PROCESS2"
+      ],
+      "to_status": "missing",
+      "color": "#E74C3C"
+    }
+  ]
+}

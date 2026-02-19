@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from ..chunker.chunker import Chunker
-from ..models import Chunk
+from ..models import Chunk, MissingDependency
 from ..pipeline.dependency_map import HLASMDependencyMap
 from ..pipeline.extract_blocks import ExtractBlocksTask
 
@@ -54,6 +54,9 @@ class HlasmAnalysis:
         self._extractor = ExtractBlocksTask()
         self._chunker = Chunker()
         self.dependency_map = HLASMDependencyMap()
+        #: Populated by :meth:`analyze_with_dependencies` – one entry for
+        #: every dependency symbol that could not be resolved to a source file.
+        self.missing_deps: List[MissingDependency] = []
 
     # ------------------------------------------------------------------
     # Primary API
@@ -121,8 +124,15 @@ class HlasmAnalysis:
             Mapping from file path to its chunks (includes the root file and
             all reachable dependency files).
         """
+        self.missing_deps = []          # reset for each top-level call
         results: Dict[str, List[Chunk]] = {}
         self._analyze_recursive(file_path, results, depth=0)
+        if self.missing_deps:
+            logger.warning(
+                "%d unresolved dependenc%s – run with --missing-deps-log to save details",
+                len(self.missing_deps),
+                "y" if len(self.missing_deps) == 1 else "ies",
+            )
         return results
 
     # ------------------------------------------------------------------
@@ -151,6 +161,16 @@ class HlasmAnalysis:
         chunks = self.analyze_file(file_path)
         results[file_path] = chunks
 
+        # Build a set of all chunk labels that are already known (from all
+        # analysed files including the current one).  A dep that matches a
+        # known label is a local/internal call – not a missing external file.
+        known_labels: Set[str] = {
+            c.label.upper()
+            for existing_chunks in results.values()
+            for c in existing_chunks
+        }
+        known_labels.update(c.label.upper() for c in chunks)
+
         # Follow dependencies
         seen_deps: Set[str] = set()
         for chunk in chunks:
@@ -159,8 +179,20 @@ class HlasmAnalysis:
                     continue
                 seen_deps.add(dep)
                 dep_path = self._resolve_dependency(dep)
-                if dep_path and dep_path not in results:
-                    self._analyze_recursive(dep_path, results, depth + 1)
+                if dep_path:
+                    if dep_path not in results:
+                        self._analyze_recursive(dep_path, results, depth + 1)
+                elif dep.upper() not in known_labels:
+                    # Could not find a source file AND not a local label.
+                    # Chunk creation continues; the gap is recorded for reporting.
+                    missing = MissingDependency(
+                        dep_name=dep,
+                        referenced_from_file=file_path,
+                        referenced_in_chunk=chunk.label,
+                        search_path=self.external_path,
+                    )
+                    self.missing_deps.append(missing)
+                    logger.warning("Unresolved dependency: %s", missing)
 
     def _resolve_dependency(self, dep_name: str) -> Optional[str]:
         """

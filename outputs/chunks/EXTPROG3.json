@@ -1,0 +1,170 @@
+[
+  {
+    "label": "EXTPROG3",
+    "chunk_type": "ENTRY",
+    "source_file": "tests/fixtures/programs/EXTPROG3.asm",
+    "instruction_count": 10,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "IN",
+        "operands": [],
+        "comment": null,
+        "instruction_type": "ENTRY_MARKER",
+        "raw_text": "IN"
+      },
+      {
+        "label": null,
+        "opcode": "STM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "STM   14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BALR",
+        "operands": [
+          "12",
+          "0"
+        ],
+        "comment": null,
+        "instruction_type": "CALL",
+        "raw_text": "BALR  12,0"
+      },
+      {
+        "label": null,
+        "opcode": "USING",
+        "operands": [
+          "*",
+          "12"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "USING *,12"
+      },
+      {
+        "label": null,
+        "opcode": "ST",
+        "operands": [
+          "13",
+          "EP3SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "ST    13,EP3SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LA",
+        "operands": [
+          "13",
+          "EP3SAVE"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LA    13,EP3SAVE"
+      },
+      {
+        "label": null,
+        "opcode": "MVI",
+        "operands": [
+          "EP3FLAG",
+          "X'01'"
+        ],
+        "comment": "Signal completion",
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "MVI   EP3FLAG,X'01'      Signal completion"
+      },
+      {
+        "label": null,
+        "opcode": "L",
+        "operands": [
+          "13",
+          "EP3SAVE+4"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "L     13,EP3SAVE+4"
+      },
+      {
+        "label": null,
+        "opcode": "LM",
+        "operands": [
+          "14",
+          "12",
+          "12(13)"
+        ],
+        "comment": null,
+        "instruction_type": "INSTRUCTION",
+        "raw_text": "LM    14,12,12(13)"
+      },
+      {
+        "label": null,
+        "opcode": "BR",
+        "operands": [
+          "14"
+        ],
+        "comment": null,
+        "instruction_type": "BRANCH",
+        "raw_text": "BR    14"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "EP3SAVE",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/EXTPROG3.asm",
+    "instruction_count": 1,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DC",
+        "operands": [
+          "18F'0'"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DC    18F'0'"
+      }
+    ],
+    "metadata": {}
+  },
+  {
+    "label": "EP3FLAG",
+    "chunk_type": "SUBROUTINE",
+    "source_file": "tests/fixtures/programs/EXTPROG3.asm",
+    "instruction_count": 2,
+    "dependencies": [],
+    "instructions": [
+      {
+        "label": null,
+        "opcode": "DS",
+        "operands": [
+          "X"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "DS    X"
+      },
+      {
+        "label": null,
+        "opcode": "END",
+        "operands": [
+          "EXTPROG3"
+        ],
+        "comment": null,
+        "instruction_type": "DATA",
+        "raw_text": "END   EXTPROG3"
+      }
+    ],
+    "metadata": {}
+  }
+]
