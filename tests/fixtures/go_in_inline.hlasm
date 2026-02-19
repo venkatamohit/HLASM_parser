@@ -48,6 +48,8 @@ VALIDATE IN
          BE    VALERR               Branch if blank
 *
          MVI   WRKFLAG,X'01'       Set "valid" flag
+*        Call external helper – inline subroutines can GO to external files
+         GO    EXTPROG3
          B     VALOK
 *
 VALERR   MVI   WRKFLAG,X'FF'       Set "error" flag

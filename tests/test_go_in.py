@@ -355,6 +355,60 @@ class TestGoInExternalFiles:
             all_deps.update(c.dependencies)
         assert "EXTPROG2" in all_deps
 
+    # ── Inline subroutine → external file ────────────────────────────────────
+
+    def test_inline_in_subroutine_dep_tracked(self, analysis):
+        """VALIDATE IN calls GO EXTPROG3 – dep must appear on the VALIDATE chunk."""
+        chunks = analysis.analyze_file(str(FIXTURES / "go_in_inline.hlasm"))
+        validate = next((c for c in chunks if c.label == "VALIDATE"), None)
+        assert validate is not None
+        assert "EXTPROG3" in validate.dependencies
+
+    def test_inline_in_subroutine_external_resolved(self, analysis):
+        """analyze_with_dependencies must follow GO inside an IN block to EXTPROG3."""
+        results = analysis.analyze_with_dependencies(
+            str(FIXTURES / "go_in_inline.hlasm")
+        )
+        resolved_files = set(results.keys())
+        assert any("EXTPROG3" in f for f in resolved_files), (
+            f"EXTPROG3 not resolved; resolved files: {resolved_files}"
+        )
+
+    def test_inline_in_subroutine_external_chunk_type(self, analysis):
+        """EXTPROG3 starts with IN – its chunk must have chunk_type ENTRY."""
+        results = analysis.analyze_with_dependencies(
+            str(FIXTURES / "go_in_inline.hlasm")
+        )
+        extprog3_key = next((k for k in results if "EXTPROG3" in k), None)
+        assert extprog3_key is not None
+        entry_chunks = [c for c in results[extprog3_key] if c.chunk_type == "ENTRY"]
+        assert len(entry_chunks) >= 1
+
+    def test_in_block_go_external_inline_source(self, analysis):
+        """Inline-text variant: an IN block's GO target is resolved."""
+        import tempfile, textwrap, os
+        src = textwrap.dedent("""\
+        MAIN     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    IN
+                 GO    EXTPROG1
+                 BR    14
+        """)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".hlasm", dir=str(FIXTURES), delete=False
+        ) as f:
+            f.write(src)
+            tmp_path = f.name
+        try:
+            results = analysis.analyze_with_dependencies(tmp_path)
+            resolved = set(results.keys())
+            assert any("EXTPROG1" in r for r in resolved), (
+                f"EXTPROG1 not resolved from IN block; resolved: {resolved}"
+            )
+        finally:
+            os.unlink(tmp_path)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Mixed style – same file with both BAL and GO calls
