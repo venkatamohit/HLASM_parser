@@ -1,0 +1,32 @@
+* ============================================================
+* HLASM PROGRAM WITH DSECT AND CSECT
+* Tests: multiple section types, DSECT mapping
+* ============================================================
+PROGMAIN CSECT
+         STM   14,12,12(13)
+         BALR  12,0
+         USING *,12
+         ST    13,PMSVAREA+4
+         LA    13,PMSVAREA
+*
+* Get storage for work area and map it with DSECT
+         LA    2,WORKAREA
+         USING WORKMAPD,2
+*
+         MVC   WRK_NAME,=CL20'DEFAULT NAME'
+         MVI   WRK_FLAG,X'01'
+*
+         L     13,PMSVAREA+4
+         LM    14,12,12(13)
+         BR    14
+*
+PMSVAREA DC    18F'0'
+WORKAREA DS    CL100
+*
+* ── DSECT mapping ────────────────────────────────────────────
+WORKMAPD DSECT
+WRK_NAME DS    CL20             20-char name field
+WRK_FLAG DS    X                1-byte flag
+WRK_LEN  EQU   *-WORKMAPD       Length of work area
+*
+         END   PROGMAIN

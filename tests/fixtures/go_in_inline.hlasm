@@ -1,0 +1,124 @@
+* ============================================================
+* MAIN PROGRAM USING GO/IN CONVENTION
+*
+* Main section is a few hundred lines.
+* Subroutines are called with  GO <name>  (max 8-char label)
+* Subroutine bodies start with  <name>  IN
+* ============================================================
+MAINPROG CSECT
+         BALR  12,0              Establish base register
+         USING *,12
+*
+* Initialise working storage
+         MVC   WRKNAME,=CL20' '     Clear name field
+         MVI   WRKFLAG,X'00'        Clear flag
+*
+* Call VALIDATE subroutine (defined inline below)
+         GO    VALIDATE
+*
+* Call TRANSFM subroutine (defined inline below)
+         GO    TRANSFM
+*
+* Conditional GO – only call CLEANUP if flag is set
+         TM    WRKFLAG,X'01'
+         GOIF  CLEANUP
+*
+* Call an external program (in a separate file)
+         GO    EXTPROG1
+*
+* Normal return
+         BR    14
+*
+* ── Working storage ──────────────────────────────────────────
+WRKNAME  DS    CL20
+WRKFLAG  DS    X
+WRKBUFF  DS    CL80
+*
+* ============================================================
+* VALIDATE subroutine – validate input data (8-char label)
+* ============================================================
+VALIDATE IN
+         STM   14,12,12(13)     Save registers
+         BALR  12,0
+         USING *,12
+         ST    13,VALSAVE+4
+         LA    13,VALSAVE
+*
+         CLC   WRKNAME,=CL20' '    Check if name is blank
+         BE    VALERR               Branch if blank
+*
+         MVI   WRKFLAG,X'01'       Set "valid" flag
+*        Call external helper – inline subroutines can GO to external files
+         GO    EXTPROG3
+         B     VALOK
+*
+VALERR   MVI   WRKFLAG,X'FF'       Set "error" flag
+*
+VALOK    DS    0H
+         L     13,VALSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+VALSAVE  DC    18F'0'
+*
+* ============================================================
+* TRANSFM subroutine – transform data (7-char label)
+* ============================================================
+TRANSFM  IN
+         STM   14,12,12(13)
+         BALR  12,0
+         USING *,12
+         ST    13,TRSAVE+4
+         LA    13,TRSAVE
+*
+* Call nested internal sub-routine via GO
+         GO    FMTNAME
+*
+         MVC   WRKBUFF,WRKNAME     Copy to output buffer
+*
+         L     13,TRSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+TRSAVE   DC    18F'0'
+*
+* ============================================================
+* FMTNAME subroutine – format the name field (7-char label)
+* ============================================================
+FMTNAME  IN
+         STM   14,12,12(13)
+         BALR  12,0
+         USING *,12
+         ST    13,FNSAVE+4
+         LA    13,FNSAVE
+*
+         TR    WRKNAME,UPRTAB      Translate to uppercase
+*
+         L     13,FNSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+FNSAVE   DC    18F'0'
+UPRTAB   DS    CL256
+*
+* ============================================================
+* CLEANUP subroutine – release resources (7-char label)
+* ============================================================
+CLEANUP  IN
+         STM   14,12,12(13)
+         BALR  12,0
+         USING *,12
+         ST    13,CLSAVE+4
+         LA    13,CLSAVE
+*
+         MVC   WRKBUFF,=CL80' '   Clear output buffer
+         MVC   WRKNAME,=CL20' '   Clear name
+         MVI   WRKFLAG,X'00'      Clear flag
+*
+         L     13,CLSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+CLSAVE   DC    18F'0'
+*
+         END   MAINPROG

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hlasm-parser"
+version = "0.1.0"
+description = "HLASM parser that expands macros, copybooks, and subroutines into structured chunks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["hlasm", "assembler", "mainframe", "parser", "ibm", "z-os"]
+
+dependencies = []
+
+[project.optional-dependencies]
+graph = ["networkx>=3.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+hlasm-parser = "hlasm_parser.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hlasm_parser*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["hlasm_parser"]
+omit = ["tests/*"]

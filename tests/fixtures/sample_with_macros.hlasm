@@ -1,0 +1,23 @@
+* ============================================================
+* HLASM PROGRAM WITH MACRO CALLS
+* Tests: macro expansion via copybooks, parameter substitution
+* ============================================================
+MACROPROG CSECT
+         BALR  12,0
+         USING *,12
+*
+* Use SAVEREGS macro to save registers
+         SAVEREGS MYSAVE
+*
+* Use PRINTMSG macro to print a greeting
+         PRINTMSG GREETING,13
+*
+* Return
+         L     13,MYSAVE+4
+         LM    14,12,12(13)
+         BR    14
+*
+MYSAVE   DC    18F'0'
+GREETING DC    C'HELLO WORLD!'
+*
+         END   MACROPROG
