@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -168,15 +169,36 @@ def _format_text(data: object, missing_deps: list[dict] | None = None) -> str:
     return "\n".join(lines)
 
 
+def _safe_filename(label: str, fallback: str = "ROOT") -> str:
+    """Convert an arbitrary HLASM label into a safe filename stem.
+
+    - Keeps ASCII letters, digits, hyphens, and dots.
+    - Replaces every other character (spaces, $, #, @, (, ), /, \\, …) with ``_``.
+    - Collapses runs of ``_`` into one and strips leading/trailing ``_``.
+    - Falls back to *fallback* when the result would be empty.
+    """
+    safe = re.sub(r"[^A-Za-z0-9\-.]", "_", label)
+    safe = re.sub(r"_+", "_", safe).strip("_")
+    return safe or fallback
+
+
 def _write_split_output(results: dict, output_dir: Path) -> None:
     """Write one .asm file per chunk into output_dir/<source-stem>/<label>.asm."""
     output_dir.mkdir(parents=True, exist_ok=True)
     for file_path, chunks in results.items():
-        stem = Path(file_path).stem
+        stem = _safe_filename(Path(file_path).stem, fallback="PROGRAM")
         dest = output_dir / stem
         dest.mkdir(parents=True, exist_ok=True)
+        seen: dict[str, int] = {}
         for chunk in chunks:
-            safe_label = chunk.label.replace("/", "_").replace("\\", "_") or "ROOT"
+            base = _safe_filename(chunk.label, fallback="ROOT")
+            # Disambiguate collisions that arise after sanitisation
+            if base in seen:
+                seen[base] += 1
+                safe_label = f"{base}_{seen[base]}"
+            else:
+                seen[base] = 0
+                safe_label = base
             out_file = dest / f"{safe_label}.asm"
             lines = [
                 instr.raw_text
