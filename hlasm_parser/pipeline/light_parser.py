@@ -174,7 +174,6 @@ class LightParser:
                     visited.add(macro_name)
                     queue.append((macro_name, self.macros[macro_name].lines))
                 for target in macro_targets:
-                    target = self._resolve_equ_alias(target)
                     if target not in self.flow[macro_name]:
                         self.flow[macro_name].append(target)
                     self._resolve_target(target, visited, queue)
@@ -182,7 +181,6 @@ class LightParser:
             for target in self._find_go_targets(
                 lines, self.macros, include_known_macros=False
             ):
-                target = self._resolve_equ_alias(target)
                 if target not in self.flow[parent]:
                     self.flow[parent].append(target)
                 self._resolve_target(target, visited, queue)
@@ -315,6 +313,13 @@ class LightParser:
 
             for target in LightParser._targets_from_dispatch_style_macro(operands):
                 _add(target)
+            # EQU alias line: NAME EQU TARGET  -> follow TARGET in BFS
+            if op_u == "EQU":
+                alias_ops = LightParser._split_operands(operand_field)
+                if alias_ops:
+                    rhs = alias_ops[0].strip()
+                    if rhs != "*" and LightParser._looks_symbolic(rhs):
+                        _add(rhs)
 
         return targets
 
@@ -703,6 +708,13 @@ class LightParser:
 
                 # Secondary: EQU anchor block (kept as candidate; IN/OUT wins)
                 if equ_candidate is None and equ_re.match(line):
+                    _, op, operand_field = self._split_statement(line)
+                    ops = self._split_operands(operand_field) if op.upper() == "EQU" else []
+                    rhs = ops[0].strip().upper() if ops else ""
+                    if rhs and rhs != "*":
+                        # For alias-style EQU, capture only the EQU line.
+                        equ_candidate = [line]
+                        continue
                     block = [line]
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
@@ -720,7 +732,6 @@ class LightParser:
         visited: set[str],
         queue: list[tuple[str, list[str]]],
     ) -> None:
-        target = self._resolve_equ_alias(target)
         if target in visited:
             return
         visited.add(target)
