@@ -1,0 +1,113 @@
+* ================================================================
+* VALIDATE  –  Employee Record Validation Subroutine
+* ================================================================
+*
+* Called by: MAINPROG  (GO VALIDATE)
+* Calls:     GO    DBREAD          Read employee master record
+*            GOIF  ERRORS          Handle validation failure
+*            L     R15,=V(CONVERT) Convert input amounts
+*
+* Function:
+*   Validates the incoming employee payroll record against the
+*   employee master file, checks pay-period dates, verifies
+*   hours-worked ranges, and confirms tax-status codes.
+*   Sets ERRFLAG to X'FF' if any validation fails.
+*
+* Registers on entry:
+*   R1  -> INREC (200-byte input record)
+*   R13 -> Caller's save area
+* ================================================================
+*
+VALIDATE IN
+         STM   R14,R12,12(R13)    Save caller's registers
+         BALR  R12,0              Establish local base
+         USING *,R12
+         ST    R13,VLSAVE+4       Chain save areas
+         LA    R13,VLSAVE         Point to our save area
+*
+* ---- Step 1: Read employee master to verify ID exists ----------
+         MVC   MSTKEY,EMPLID      Move ID to master file key
+         GO    DBREAD              Read the master record
+         LTR   R15,R15            Did DBREAD return an error?
+         BNZ   VALBADID           Non-zero = employee not found
+*
+* ---- Step 2: Check employment type is valid --------------------
+         CLI   EMPLTYP,C'F'       Full-time?
+         BE    VALTYPOK
+         CLI   EMPLTYP,C'P'       Part-time?
+         BE    VALTYPOK
+         CLI   EMPLTYP,C'T'       Temporary?
+         BE    VALTYPOK
+         MVC   ERRMSG,=CL40'Invalid employment type code       '
+         MVI   ERRFLAG,X'FF'
+         BE    VALERR             Log and exit
+*
+VALTYPOK DS    0H
+* ---- Step 3: Check tax status is valid -------------------------
+         CLI   EMPLTAX,C'S'       Single?
+         BE    VALTAXOK
+         CLI   EMPLTAX,C'M'       Married?
+         BE    VALTAXOK
+         CLI   EMPLTAX,C'X'       Exempt?
+         BE    VALTAXOK
+         MVC   ERRMSG,=CL40'Invalid tax status code            '
+         MVI   ERRFLAG,X'FF'
+         BE    VALERR
+*
+VALTAXOK DS    0H
+* ---- Step 4: Validate hours worked (0-999.99 packed) -----------
+         CP    EMPLHRS,=P'0'      Must be non-negative
+         BL    VALBADHR
+         CP    EMPLHRS,=P'9999'   Must not exceed 99.99 hours
+         BH    VALBADHR
+         B     VALHROK
+VALBADHR DS    0H
+         MVC   ERRMSG,=CL40'Hours worked out of range 0-99.99 '
+         MVI   ERRFLAG,X'FF'
+         BE    VALERR
+*
+VALHROK  DS    0H
+* ---- Step 5: Validate pay grade 01-20 -------------------------
+         CLI   EMPLGRD,C'01'
+         BL    VALBADGR
+         CLI   EMPLGRD,C'20'
+         BH    VALBADGR
+         B     VALGROK
+VALBADGR DS    0H
+         MVC   ERRMSG,=CL40'Pay grade out of range 01-20       '
+         MVI   ERRFLAG,X'FF'
+         BE    VALERR
+*
+VALGROK  DS    0H
+* ---- Step 6: Convert monetary fields to internal format --------
+         L     R15,=V(CONVERT)    Link to currency conversion
+         BALR  R14,R15
+*
+* ---- Validation passed – clear error flag ----------------------
+         MVI   ERRFLAG,X'00'
+         B     VALEXIT
+*
+* ---- Error paths -----------------------------------------------
+VALBADID DS    0H
+         MVC   ERRMSG,=CL40'Employee ID not found in master    '
+         MVI   ERRFLAG,X'FF'
+*
+VALERR   DS    0H
+         L     R15,=V(ERRORS)     Link to error handler
+         BALR  R14,R15
+*
+* ---- Exit ------------------------------------------------------
+VALEXIT  DS    0H
+         L     R13,VLSAVE+4       Restore caller's save pointer
+         LM    R14,R12,12(R13)    Restore caller's registers
+         BR    R14                Return to caller
+         OUT
+*
+* ---- Local working storage ------------------------------------
+VLSAVE   DC    18F'0'             Save area
+MSTKEY   DC    CL8' '             Master-file search key
+ERRMSG   DC    CL40' '            Diagnostic message text
+VLWORK   DC    CL80' '            General work area
+VLFLG    DC    X'00'              Local validation flag
+*
+         LTORG

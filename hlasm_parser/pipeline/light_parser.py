@@ -21,8 +21,14 @@ import re
 from pathlib import Path
 from typing import Iterator
 
-# GO / GOIF / GOIFNOT – first operand is always the target subroutine name
-_GO_RE = re.compile(r"\bGO(?:IF(?:NOT)?)?\s+(\w+)", re.IGNORECASE)
+# GO / GOIF / GOIFNOT in opcode position.
+# Anchored to line start so that "go" appearing inside an inline comment
+# (e.g. "... More records – go round again") is never matched.
+# Accepts:  <label> GO ... or (spaces) GO ...
+_GO_RE = re.compile(
+    r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)GO(?:IF(?:NOT)?)?\s+(\w+)",
+    re.IGNORECASE,
+)
 
 # L Rx,=V(SUBNAME) – the primary Link form: load an external subroutine
 # address via a V-type address constant, e.g.  L     R15,=V(EXTSUB)
@@ -195,8 +201,9 @@ class LightParser:
         for line in lines:
             if line.startswith("*"):   # full-line comment
                 continue
-            # GO / GOIF / GOIFNOT
-            for m in _GO_RE.finditer(line):
+            # GO / GOIF / GOIFNOT (opcode-position only – not inside comments)
+            m = _GO_RE.match(line)
+            if m:
                 _add(m.group(1))
             # L Rx,=V(SUBNAME) – V-type address constant Link (primary form)
             m = _V_LINK_RE.match(line)
