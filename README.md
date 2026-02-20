@@ -181,7 +181,7 @@ Instead of doing complete instruction parsing, it uses a small set of
 call-pattern regexes and `IN` / `OUT` source markers to extract subroutine
 chunks and build a call graph — with no external dependencies.
 
-Use it when your codebase follows the GO / L / VTRAN + IN/OUT convention and
+Use it when your codebase follows the GO / L /  + IN/OUT convention and
 you need quick chunk extraction without full macro expansion.
 
 ### How it works
@@ -195,7 +195,7 @@ Driver file  (lines start..end)
       │    GO / GOIF / GOIFNOT <name>
       │    L  Rx,=V(<name>)
       │    L  <name>           (plain Link)
-      │    VTRAN seq,type,<name>,id   (translation-table entry, 3rd operand)
+      │     seq,type,<name>,id   (translation-table entry, 3rd operand)
       │
       ▼  for each <name> – BFS search for:
       │    <name>  IN … OUT   (primary – inline subroutine block)
@@ -259,12 +259,7 @@ lp.to_mermaid()         # Mermaid      → cfg.mmd
 
 ### Call patterns detected
 
-| Pattern | Example | Captured name |
-|---|---|---|
-| `GO` / `GOIF` / `GOIFNOT` | `GO    VALIDATE` | `VALIDATE` |
-| V-type address constant | `L     R15,=V(CONVERT)` | `CONVERT` |
-| Plain Link | `L     EXTSUB` | `EXTSUB` |
-| VTRAN dispatch entry | `VTRAN 05,0,TCR050,1001` | `TCR050` |
+
 
 ### Chunk boundary rules
 
@@ -276,20 +271,10 @@ lp.to_mermaid()         # Mermaid      → cfg.mmd
 
 ### EQU * translation tables
 
-A common HLASM pattern links to a dispatch table rather than a subroutine:
 
-```hlasm
-         L     R15,=V(VTRANTAB)    Load address of translation table
-         BALR  R14,R15
 
-VTRANTAB EQU   *                   ← captured as a chunk (EQU * fallback)
-         VTRAN 05,0,TCR050,1001    ← TCR050 extracted as a BFS target
-         VTRAN 05,0,TCR051,1002    ← TCR051 extracted as a BFS target
-NEXTLBL  DS    0H                  ← table ends here (labeled statement)
-```
-
-The Light Parser captures `VTRANTAB` as an EQU * chunk, then resolves
-`TCR050` and `TCR051` via their normal `IN` / `OUT` blocks (which may live
+The Light Parser captures `TAB` as an EQU * chunk, then resolves
+`TS50` and `TS51` via their normal `IN` / `OUT` blocks (which may live
 in the driver file or in any file under `deps_dir`).
 
 ### Running the sample suite
@@ -410,7 +395,7 @@ hlasm_parser/
 │   ├── extract_blocks.py
 │   ├── dependency_map.py
 │   ├── hlasm_analysis.py
-│   └── light_parser.py    – lightweight GO/L/VTRAN + IN/OUT chunk extractor
+│   └── light_parser.py    – lightweight GO/L/ + IN/OUT chunk extractor
 ├── chunker/
 │   └── chunker.py
 └── cli.py
