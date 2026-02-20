@@ -164,30 +164,27 @@ class LightParser:
 
         while queue:
             parent, lines = queue.pop(0)
-            for macro_name, macro_targets in self._find_macro_calls(lines, self.macros):
-                # Never create a self-referencing edge (macro body scanning
-                # can see its own prototype line as an apparent invocation).
-                if macro_name == parent:
-                    continue
-                if macro_name not in self.flow[parent]:
-                    self.flow[parent].append(macro_name)
-                self.flow.setdefault(macro_name, [])
-                self.node_tags[macro_name] = ["macro"]
-                self.chunk_kinds[macro_name] = "macro"
-                if macro_name not in visited:
-                    visited.add(macro_name)
-                    queue.append((macro_name, self.macros[macro_name].lines))
-                for target in macro_targets:
-                    if target not in self.flow[macro_name]:
-                        self.flow[macro_name].append(target)
+            # Scan all calls in source-line order (macros and GO/L interleaved).
+            for call in self._find_calls_ordered(lines, self.macros, parent):
+                if call["kind"] == "macro":
+                    macro_name = call["name"]
+                    if macro_name not in self.flow[parent]:
+                        self.flow[parent].append(macro_name)
+                    self.flow.setdefault(macro_name, [])
+                    self.node_tags[macro_name] = ["macro"]
+                    self.chunk_kinds[macro_name] = "macro"
+                    if macro_name not in visited:
+                        visited.add(macro_name)
+                        queue.append((macro_name, self.macros[macro_name].lines))
+                    for target in call["targets"]:
+                        if target not in self.flow[macro_name]:
+                            self.flow[macro_name].append(target)
+                        self._resolve_target(target, visited, queue)
+                else:  # "direct" — GO / L target
+                    target = call["name"]
+                    if target not in self.flow[parent]:
+                        self.flow[parent].append(target)
                     self._resolve_target(target, visited, queue)
-
-            for target in self._find_go_targets(
-                lines, self.macros, include_known_macros=False
-            ):
-                if target not in self.flow[parent]:
-                    self.flow[parent].append(target)
-                self._resolve_target(target, visited, queue)
 
         self._write_macro_catalog()
 
@@ -268,7 +265,9 @@ class LightParser:
             name         – chunk name
             kind / tags  – same as chunks dict entry
             source_lines – raw source lines (absent on ref-stub nodes)
-            calls        – ordered list of child nodes
+            calls        – ordered list of child nodes **in source call order**
+            seq          – 1-indexed call-sequence position within the parent
+                           (``1`` = first call encountered in parent's source)
             ref          – ``True`` when this node was already fully expanded
                            higher up in the tree (avoids duplication and
                            infinite recursion on shared/cyclic callees)
@@ -294,12 +293,19 @@ class LightParser:
                 return {"name": name, "ref": True}
             expanded.add(name)
             info = chunks_dict.get(name, {})
+            calls = []
+            for seq_num, child in enumerate(self.flow.get(name, []), start=1):
+                child_node = build_node(child)
+                # seq marks the 1-indexed call order within this block so
+                # documentation generators can reconstruct "what is called first".
+                child_node["seq"] = seq_num
+                calls.append(child_node)
             return {
                 "name": name,
                 "kind": info.get("kind", "sub"),
                 "tags": info.get("tags", []),
                 "source_lines": info.get("source_lines", []),
-                "calls": [build_node(child) for child in self.flow.get(name, [])],
+                "calls": calls,
             }
 
         return {
@@ -424,6 +430,90 @@ class LightParser:
             seen.add(key)
             out.append((op_u, targets))
         return out
+
+    @staticmethod
+    def _find_calls_ordered(
+        lines: list[str],
+        macro_catalog: dict[str, MacroDefinition],
+        parent_name: str = "",
+    ) -> list[dict]:
+        """Return all call events for *lines* in source-line order.
+
+        Each event is a dict with:
+          ``kind``    – ``"macro"`` or ``"direct"``
+          ``name``    – macro or target name (upper-cased)
+          ``targets`` – list of callee names (macro events only)
+
+        This is the single-pass replacement for calling :meth:`_find_macro_calls`
+        and :meth:`_find_go_targets` separately so that the resulting
+        :attr:`flow` list preserves the actual call sequence from the source.
+        """
+        macro_names = set(macro_catalog.keys())
+        seen_macro_keys: set[tuple[str, tuple[str, ...]]] = set()
+        seen_direct: set[str] = set()
+        result: list[dict] = []
+
+        def _emit_direct(name: str) -> None:
+            n = name.upper()
+            if n not in seen_direct:
+                seen_direct.add(n)
+                result.append({"kind": "direct", "name": n})
+
+        for line in lines:
+            if line.startswith("*"):
+                continue
+
+            # GO / GOIF / GOIFNOT — direct target
+            m = _GO_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # L Rx,=V(NAME) / L Rx,=A(NAME) — direct target
+            m = _V_LINK_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # Plain L <name> — direct target (no register, no comma)
+            m = _LINK_RE.match(line)
+            if m and not _REGISTER_RE.match(m.group(1)):
+                _emit_direct(m.group(1))
+                continue
+
+            # Parse statement for opcode-based call detection
+            label, opcode, operand_field = LightParser._split_statement(line)
+            if not opcode:
+                continue
+            # Skip macro prototype/header lines inside MACRO…MEND blocks.
+            if label.startswith("&"):
+                continue
+
+            op_u = opcode.upper()
+            operands = LightParser._split_operands(operand_field)
+
+            # Known macro invocation (never self-referencing)
+            if op_u in macro_names and op_u != parent_name.upper():
+                targets = LightParser._targets_from_known_macro_call(
+                    macro_catalog[op_u], operands
+                )
+                key = (op_u, tuple(targets))
+                if key not in seen_macro_keys:
+                    seen_macro_keys.add(key)
+                    result.append({"kind": "macro", "name": op_u, "targets": targets})
+                continue
+
+            # Generic dispatch-style table entry (num,num,symbol,num)
+            for t in LightParser._targets_from_dispatch_style_macro(operands):
+                _emit_direct(t)
+
+            # EQU alias line: NAME EQU TARGET  — follow TARGET in BFS
+            if op_u == "EQU" and operands:
+                rhs = operands[0].strip()
+                if rhs != "*" and LightParser._looks_symbolic(rhs):
+                    _emit_direct(rhs)
+
+        return result
 
     @staticmethod
     def _split_statement(line: str) -> tuple[str, str, str]:

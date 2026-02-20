@@ -1518,3 +1518,279 @@ class TestNestedFlow:
             "-s", str(out),
         ])
         assert not (out / "cfg" / "nested_flow.json").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Call-order preservation and seq field
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCallOrderAndSeq:
+    """Verify that flow preserves source order and nested_flow exposes seq."""
+
+    # ── source order in self.flow ─────────────────────────────────────────────
+
+    def test_go_before_macro_order_preserved(self, tmp_path):
+        """GO call on line 2, macro call on line 3 → GO target first in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 MYMAC TCR051
+                 BR    14
+        MACRO
+        MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 4)
+        # SUBA (GO on line 2) must come before MYMAC (macro on line 3)
+        assert lp.flow["main"].index("SUBA") < lp.flow["main"].index("MYMAC")
+
+    def test_macro_before_go_order_preserved(self, tmp_path):
+        """Macro call on line 2, GO call on line 3 → macro first in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 MYMAC TCR051
+                 GO    SUBA
+                 BR    14
+        MACRO
+        MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 4)
+        # MYMAC (macro on line 2) must come before SUBA (GO on line 3)
+        assert lp.flow["main"].index("MYMAC") < lp.flow["main"].index("SUBA")
+
+    def test_multiple_go_calls_order_preserved(self, tmp_path):
+        """Three sequential GO calls appear in source order in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    FIRST
+                 GO    SECOND
+                 GO    THIRD
+                 BR    14
+        FIRST    IN
+                 BR    14
+                 OUT
+        SECOND   IN
+                 BR    14
+                 OUT
+        THIRD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert order.index("FIRST") < order.index("SECOND") < order.index("THIRD")
+
+    def test_l_v_target_comes_before_go_if_first_in_source(self, tmp_path):
+        """L Rx,=V(NAME) on line 2, GO on line 3 → L target precedes GO target."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTAB)
+                 GO    SUBA
+                 BR    14
+        VTAB     EQU   *
+                 MACRO 05,0,TCR050,1001
+                 EJECT
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert "VTAB" in order
+        assert "SUBA" in order
+        assert order.index("VTAB") < order.index("SUBA")
+
+    # ── L targets visible in nested flow tree ────────────────────────────────
+
+    def test_l_v_target_appears_in_nested_flow_tree(self, tmp_path):
+        """L Rx,=V(NAME) target must show up as a call node in the tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTAB)
+                 BR    14
+        VTAB     EQU   *
+                 05,0,TCR050,1001
+                 EJECT
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        call_names = [c["name"] for c in tree["calls"]]
+        assert "VTAB" in call_names
+
+    def test_plain_l_target_appears_in_nested_flow_tree(self, tmp_path):
+        """Plain L <name> target must show up as a call node in the tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     MYSUB
+                 BR    14
+        MYSUB    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        call_names = [c["name"] for c in tree["calls"]]
+        assert "MYSUB" in call_names
+
+    def test_l_target_has_source_lines_in_nested_flow(self, tmp_path):
+        """L-resolved sub should have source_lines in its nested flow node."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(MYSUB)
+                 BR    14
+        MYSUB    IN
+                 MVI   RESULT,C'Y'
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        mysub_node = next(c for c in tree["calls"] if c["name"] == "MYSUB")
+        assert mysub_node.get("ref") is not True
+        assert len(mysub_node.get("source_lines", [])) > 0
+
+    # ── seq field ─────────────────────────────────────────────────────────────
+
+    def test_seq_field_present_on_call_nodes(self, tmp_path):
+        """Every node in the calls list must have a seq field."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA     IN
+                 BR    14
+                 OUT
+        SUBB     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        for child in tree["calls"]:
+            assert "seq" in child, f"Missing seq on node {child['name']}"
+
+    def test_seq_values_are_one_indexed_and_sequential(self, tmp_path):
+        """seq must be 1, 2, 3… matching the calls list position."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    FIRST
+                 GO    SECOND
+                 GO    THIRD
+                 BR    14
+        FIRST    IN
+                 BR    14
+                 OUT
+        SECOND   IN
+                 BR    14
+                 OUT
+        THIRD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        for i, child in enumerate(tree["calls"], start=1):
+            assert child["seq"] == i
+
+    def test_seq_matches_source_call_order(self, tmp_path):
+        """seq=1 is the first routine called in source, seq=2 the second, etc."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    ALPHA
+                 GO    BETA
+                 BR    14
+        ALPHA    IN
+                 BR    14
+                 OUT
+        BETA     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        alpha = next(c for c in tree["calls"] if c["name"] == "ALPHA")
+        beta = next(c for c in tree["calls"] if c["name"] == "BETA")
+        assert alpha["seq"] == 1
+        assert beta["seq"] == 2
+
+    def test_seq_on_ref_stub(self, tmp_path):
+        """ref stubs (shared callees) also carry a seq field."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA     IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB     IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        all_shared = [
+            n for calls in (suba["calls"], subb["calls"])
+            for n in calls if n["name"] == "SHARED"
+        ]
+        # Both occurrences of SHARED must have seq (one full, one ref stub)
+        for node in all_shared:
+            assert "seq" in node
+
+    def test_seq_on_deeply_nested_grandchild(self, tmp_path):
+        """seq is present on grandchild nodes too."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 GO    SUBB
+                 BR    14
+                 OUT
+        SUBB     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in suba["calls"] if c["name"] == "SUBB")
+        assert subb["seq"] == 1  # SUBB is the only (first) call inside SUBA
