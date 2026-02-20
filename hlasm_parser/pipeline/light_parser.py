@@ -46,12 +46,12 @@ _V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=(?:V|A)\((\w+)\)", re.IGNORECASE)
 #   • Operand is a plain HLASM identifier (letters/digits/@/#/$, 1–8 chars).
 #   • Nothing else on the line (no comma / parenthesis = not a Load-register).
 _LINK_RE = re.compile(
-    r"^\s+L\s+([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*(?:\*.*)?$",
+    r"^\s+L\s+([A-Za-z@#$_][A-Za-z0-9@#$_]{0,63})\s*(?:\*.*)?$",
     re.IGNORECASE,
 )
 # LOAD EP=<name> / EP=(<name>) call form.
 _LOAD_EP_RE = re.compile(
-    r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*\)?",
+    r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*([A-Za-z@#$_][A-Za-z0-9@#$_]{0,63})\s*\)?",
     re.IGNORECASE,
 )
 
@@ -87,6 +87,7 @@ _DISPATCH_STYLE_RE = re.compile(
     r"^[0-9]+$|^X'[0-9A-F]+'$|^C'.*'$",
     re.IGNORECASE,
 )
+_SYMBOL_RE = re.compile(r"^[A-Z@#$_][A-Z0-9@#$_]{0,63}$")
 
 # Statements that may legally appear with opcode in column 1.
 _COL1_OPCODE_HINTS = {
@@ -408,10 +409,12 @@ class LightParser:
         macro_names = set(macro_catalog.keys())
 
         def _add(name: str) -> None:
-            name = name.upper()
-            if name not in seen:
-                seen.add(name)
-                targets.append(name)
+            n = LightParser._normalise_target_token(name)
+            if not n:
+                return
+            if n not in seen:
+                seen.add(n)
+                targets.append(n)
 
         for line in lines:
             if line.startswith("*"):   # full-line comment
@@ -511,7 +514,9 @@ class LightParser:
         result: list[dict] = []
 
         def _emit_direct(name: str) -> None:
-            n = name.upper()
+            n = LightParser._normalise_target_token(name)
+            if not n:
+                return
             if n not in seen_direct:
                 seen_direct.add(n)
                 result.append({"kind": "direct", "name": n})
@@ -567,9 +572,7 @@ class LightParser:
             # COPY directive — include the named copybook as a chunk in the flow.
             # Pattern: (spaces) COPY  BOOKNAME
             if op_u == "COPY" and operands:
-                cb = operands[0].strip().upper()
-                if cb and re.match(r"^[A-Z@#$][A-Z0-9@#$]{0,11}$", cb):
-                    _emit_direct(cb)
+                _emit_direct(operands[0])
                 continue
 
             # Generic dispatch-style table entry (num,num,symbol,num)
@@ -651,7 +654,7 @@ class LightParser:
 
     @staticmethod
     def _looks_symbolic(value: str) -> bool:
-        v = value.strip().upper()
+        v = LightParser._normalise_target_token(value)
         if not v:
             return False
         if v.startswith("&"):
@@ -664,7 +667,22 @@ class LightParser:
             return False
         if _DISPATCH_STYLE_RE.match(v):
             return False
-        return bool(re.fullmatch(r"[A-Z@#$][A-Z0-9@#$]{0,7}", v))
+        return bool(_SYMBOL_RE.fullmatch(v))
+
+    @staticmethod
+    def _normalise_target_token(value: str) -> str:
+        """Normalise a raw operand token into an upper-case symbol."""
+        v = value.strip()
+        if not v:
+            return ""
+        v = v.split()[0].strip()
+        while v and v[-1] in ".,;":
+            v = v[:-1]
+        if v.startswith("(") and v.endswith(")"):
+            v = v[1:-1].strip()
+        if v.startswith("'") and v.endswith("'") and len(v) >= 2:
+            v = v[1:-1].strip()
+        return v.upper()
 
     @staticmethod
     def _targets_from_known_macro_call(
@@ -868,19 +886,19 @@ class LightParser:
         wanted: list[str] = []
         formals = {p.upper() for p in formal_params}
         go_param_re = re.compile(
-            r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)GO(?:IF(?:NOT)?)?\s+(&[A-Za-z0-9@#$]+)",
+            r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)GO(?:IF(?:NOT)?)?\s+(&[A-Za-z0-9@#$_]+)",
             re.IGNORECASE,
         )
         v_param_re = re.compile(
-            r"^\s+L\s+\w+\s*,\s*=V\((&[A-Za-z0-9@#$]+)\)",
+            r"^\s+L\s+\w+\s*,\s*=V\((&[A-Za-z0-9@#$_]+)\)",
             re.IGNORECASE,
         )
         l_param_re = re.compile(
-            r"^\s+L\s+(&[A-Za-z0-9@#$]+)\s*(?:\*.*)?$",
+            r"^\s+L\s+(&[A-Za-z0-9@#$_]+)\s*(?:\*.*)?$",
             re.IGNORECASE,
         )
         load_param_re = re.compile(
-            r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*(&[A-Za-z0-9@#$]+)\s*\)?",
+            r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*(&[A-Za-z0-9@#$_]+)\s*\)?",
             re.IGNORECASE,
         )
         for line in macro_lines:
