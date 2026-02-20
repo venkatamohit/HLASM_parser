@@ -8,6 +8,9 @@ Flow
      * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
      * ``L Rx,=V(name)``  V-type address constant (primary Link form).
      * ``L <name>``  plain Link where the operand is a bare identifier.
+     * ``LOAD EP=name`` / ``XCTL EP=name`` / ``LINK EP=name``  z/OS dynamic load.
+     * ``CALL name`` / ``CALLR name``  static program call.
+     * ``COPY name``  copybook inclusion.
      * Macro invocations resolved from discovered ``MACRO ... MEND`` blocks.
 3. For each *name*, search the driver + every file under *deps_dir* using a
    cascade of four strategies:
@@ -543,6 +546,36 @@ class LightParser:
                 cb = operands[0].strip().upper()
                 if cb and re.match(r"^[A-Z@#$][A-Z0-9@#$]{0,11}$", cb):
                     _emit_direct(cb)
+                continue
+
+            # LOAD / XCTL / LINK with EP=name — z/OS dynamic program load.
+            # Common forms:
+            #   LOAD  EP=MYMOD              load by explicit entry-point name
+            #   LOAD  EP=MYMOD,ERRET=ERR    keyword operands, EP= may not be first
+            #   XCTL  EP=NEXTMOD            transfer control to another module
+            #   LINK  EP=SUBMOD             call with return to caller
+            # Register-indirect forms (EP=(R1)) are excluded.
+            if op_u in ("LOAD", "XCTL", "LINK") and operands:
+                for op in operands:
+                    s = op.strip().upper()
+                    if s.startswith("EP="):
+                        ep_name = s[3:]
+                        if (ep_name
+                                and not ep_name.startswith("(")
+                                and LightParser._looks_symbolic(ep_name)):
+                            _emit_direct(ep_name)
+                continue
+
+            # CALL / CALLR — static program call.
+            # First operand is the target name unless it is a register reference.
+            #   CALL  MYMOD              direct call
+            #   CALL  MYMOD,(P1,P2)      call with parms
+            #   CALL  (15),(PARMS)       register-indirect — skip
+            if op_u in ("CALL", "CALLR") and operands:
+                first = operands[0].strip().upper()
+                if (not first.startswith("(")
+                        and LightParser._looks_symbolic(first)):
+                    _emit_direct(first)
                 continue
 
             # Generic dispatch-style table entry (num,num,symbol,num)

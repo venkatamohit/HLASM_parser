@@ -2117,3 +2117,360 @@ class TestCopyAndCsectResolution:
         assert "MYMOD" in lp.chunks
         assert "MYMOD" not in lp.missing
         assert lp.chunk_kinds.get("MYMOD") == "csect"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOAD EP= / XCTL EP= / LINK EP= / CALL dynamic-load and static-call patterns
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestLoadEpAndCallResolution:
+    """LOAD EP=, XCTL EP=, LINK EP=, CALL, and CALLR call detection."""
+
+    # ── LOAD EP= ─────────────────────────────────────────────────────────────
+
+    def test_load_ep_adds_target_to_flow(self, tmp_path):
+        """LOAD EP=MYMOD inside a subroutine creates an edge in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.flow.get("SUBA", [])
+
+    def test_load_ep_chunk_created(self, tmp_path):
+        """LOAD EP= target gets its chunk created when IN/OUT block exists."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 MVI   FLAG,C'Y'
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.chunks
+        assert "MYMOD" not in lp.missing
+
+    def test_load_ep_with_extra_keyword_operands(self, tmp_path):
+        """LOAD EP=MYMOD,ERRET=... still extracts MYMOD."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYMOD,ERRET=ERROUT
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        ERROUT   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.flow.get("SUBA", [])
+
+    def test_load_ep_register_form_ignored(self, tmp_path):
+        """LOAD EP=(R1) — register-indirect form is not followed."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=(R1)
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        # SUBA should have no children from this LOAD
+        assert lp.flow.get("SUBA", []) == []
+
+    def test_load_ep_resolved_from_csect(self, tmp_path):
+        """LOAD EP= target resolved via CSECT block gets kind='csect'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYMOD
+                 BR    14
+                 OUT
+        MYMOD    CSECT
+                 MVI   FLAG,C'Y'
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.chunks
+        assert lp.chunk_kinds.get("MYMOD") == "csect"
+
+    def test_load_ep_resolved_from_copybook_file(self, tmp_path):
+        """LOAD EP=MYBOOK resolved from a copybook file gets kind='copybook'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYBOOK
+                 BR    14
+                 OUT
+        """)
+        deps = {"MYBOOK.cpy": "* book content\n         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.chunks
+        assert lp.chunk_kinds.get("MYBOOK") == "copybook"
+        assert "MYBOOK" not in lp.missing
+
+    def test_load_ep_in_nested_flow_tree(self, tmp_path):
+        """LOAD EP= target appears as a child node in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba_node = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        call_names = [c["name"] for c in suba_node["calls"]]
+        assert "MYMOD" in call_names
+
+    def test_load_ep_order_preserved_with_go(self, tmp_path):
+        """LOAD EP= before GO keeps its position in flow order."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=FIRST
+                 GO    SECOND
+                 BR    14
+                 OUT
+        FIRST    IN
+                 BR    14
+                 OUT
+        SECOND   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow.get("SUBA", [])
+        assert order.index("FIRST") < order.index("SECOND")
+
+    # ── XCTL EP= ─────────────────────────────────────────────────────────────
+
+    def test_xctl_ep_adds_target_to_flow(self, tmp_path):
+        """XCTL EP=NEXTPGM creates a call edge."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 XCTL  EP=NEXTPGM
+                 OUT
+        NEXTPGM  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "NEXTPGM" in lp.flow.get("SUBA", [])
+
+    def test_xctl_ep_chunk_created(self, tmp_path):
+        """XCTL EP= target chunk is created when resolvable."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 XCTL  EP=NEXTPGM
+                 OUT
+        NEXTPGM  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "NEXTPGM" in lp.chunks
+
+    # ── LINK EP= ─────────────────────────────────────────────────────────────
+
+    def test_link_ep_adds_target_to_flow(self, tmp_path):
+        """LINK EP=SUBMOD creates a call edge."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LINK  EP=SUBMOD
+                 BR    14
+                 OUT
+        SUBMOD   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "SUBMOD" in lp.flow.get("SUBA", [])
+
+    # ── CALL ─────────────────────────────────────────────────────────────────
+
+    def test_call_adds_target_to_flow(self, tmp_path):
+        """CALL MYMOD creates a direct call edge."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 CALL  MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.flow.get("SUBA", [])
+
+    def test_call_with_params_extracts_name(self, tmp_path):
+        """CALL MYMOD,(PARAM1,PARAM2) still extracts MYMOD as the target."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 CALL  MYMOD,(PARAM1,PARAM2)
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.flow.get("SUBA", [])
+
+    def test_call_register_indirect_ignored(self, tmp_path):
+        """CALL (15),(PARAMS) — register-indirect form is not followed."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 CALL  (15),(PARAMS)
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert lp.flow.get("SUBA", []) == []
+
+    def test_call_chunk_created(self, tmp_path):
+        """CALL target chunk is created when subroutine exists."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 CALL  MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 MVI   X,C'A'
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYMOD" in lp.chunks
+        assert "MYMOD" not in lp.missing
+
+    def test_call_in_nested_flow_tree(self, tmp_path):
+        """CALL target appears in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 CALL  MYMOD
+                 BR    14
+                 OUT
+        MYMOD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba_node = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        call_names = [c["name"] for c in suba_node["calls"]]
+        assert "MYMOD" in call_names
+
+    # ── COPY inside CSECT (end-to-end lockdown) ───────────────────────────────
+
+    def test_copy_inside_csect_creates_copybook_chunk(self, tmp_path):
+        """COPY MYBOOK inside a CSECT block creates MYBOOK_copybook.txt."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 COPY  MYBOOK
+                 MVC   DEST,SOURCE
+                 BR    14
+                 DS    0F
+        """)
+        deps = {"MYBOOK.cpy": "* book content\n         DS    CL10\n"}
+        driver = tmp_path / "driver.asm"
+        driver.write_text(src)
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        (deps_dir / "MYBOOK.cpy").write_text("* book content\n         DS    CL10\n")
+        out = tmp_path / "out"
+        lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
+        lp.run(1, 3)   # main section = lines 1-3 only
+        assert "MYSUB" in lp.chunks
+        assert "MYBOOK" in lp.flow.get("MYSUB", [])
+        assert "MYBOOK" in lp.chunks
+        assert "MYBOOK" not in lp.missing
+        assert (out / "MYBOOK_copybook.txt").exists()
+
+    def test_copy_inside_csect_in_nested_flow(self, tmp_path):
+        """COPY MYBOOK inside CSECT block appears in MYSUB's nested flow calls."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 COPY  MYBOOK
+                 MVC   DEST,SOURCE
+                 BR    14
+                 DS    0F
+        """)
+        driver = tmp_path / "driver.asm"
+        driver.write_text(src)
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        (deps_dir / "MYBOOK.cpy").write_text("* book content\n         DS    CL10\n")
+        out = tmp_path / "out"
+        lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
+        lp.run(1, 3)
+        tree = lp.to_nested_flow()["tree"]
+        mysub_node = next(c for c in tree["calls"] if c["name"] == "MYSUB")
+        call_names = [c["name"] for c in mysub_node["calls"]]
+        assert "MYBOOK" in call_names
+        assert mysub_node.get("ref") is not True
