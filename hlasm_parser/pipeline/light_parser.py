@@ -35,9 +35,8 @@ _GO_RE = re.compile(
     re.IGNORECASE,
 )
 
-# L Rx,=V(SUBNAME) – the primary Link form: load an external subroutine
-# address via a V-type address constant, e.g.  L     R15,=V(EXTSUB)
-_V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=V\((\w+)\)", re.IGNORECASE)
+# L Rx,=V(SUBNAME) / L Rx,=A(SUBNAME) – load callable address constant.
+_V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=(?:V|A)\((\w+)\)", re.IGNORECASE)
 
 # L <name> as a plain Link call (no register / no comma).
 #   • Leading whitespace  →  L is in opcode column, not label column.
@@ -474,35 +473,27 @@ class LightParser:
                 if not _MACRO_START_RE.match(line):
                     i += 1
                     continue
-                header_i = i + 1
-                while header_i < len(lines):
-                    hdr = lines[header_i]
-                    if hdr.strip() and not hdr.lstrip().startswith("*"):
+                header_i = i
+                name = ""
+                operands = ""
+
+                inline_name, inline_operands = self._parse_macro_header(line)
+                if inline_name:
+                    name = inline_name
+                    operands = inline_operands
+                else:
+                    header_i = i + 1
+                    while header_i < len(lines):
+                        hdr = lines[header_i]
+                        if hdr.strip() and not hdr.lstrip().startswith("*"):
+                            break
+                        header_i += 1
+                    if header_i >= len(lines):
                         break
-                    header_i += 1
-                if header_i >= len(lines):
-                    break
-                header_body = lines[header_i].split("*", 1)[0].strip()
-                header_parts = header_body.split()
-                if not header_parts:
-                    i = header_i + 1
-                    continue
-                # Support macro prototypes with optional symbolic label variable:
-                #   &LABEL MACRONAME &P1,&P2
-                # as well as the simple:
-                #   MACRONAME &P1,&P2
-                if header_parts[0].startswith("&") and len(header_parts) >= 2:
-                    name_token = header_parts[1]
-                else:
-                    name_token = header_parts[0]
-                name = name_token.strip().upper()
-                if name.startswith("&"):
-                    i = header_i + 1
-                    continue
-                if name_token in header_body:
-                    operands = header_body.split(name_token, 1)[1].strip()
-                else:
-                    operands = ""
+                    next_name, next_operands = self._parse_macro_header(lines[header_i])
+                    if next_name:
+                        name = next_name
+                        operands = next_operands
                 if not name:
                     i = header_i + 1
                     continue
@@ -530,6 +521,55 @@ class LightParser:
                     )
                 i = j + 1
         return macros
+
+    def _parse_macro_header(self, line: str) -> tuple[str, str]:
+        """Return (macro_name, operands_text) from a macro prototype/header line."""
+        raw = line.rstrip()
+        if not raw or raw.lstrip().startswith("*"):
+            return "", ""
+        header_body = raw.strip()
+        parts = header_body.split()
+        if not parts:
+            return "", ""
+
+        name_token = ""
+
+        # Form A: line contains the MACRO keyword and then name, e.g.
+        #   MACRO .* OPEN &P1,&P2
+        #   MACRO &LBL OPEN &P1,&P2
+        macro_idx = -1
+        for idx, tok in enumerate(parts):
+            if tok.upper() == "MACRO":
+                macro_idx = idx
+                break
+        if macro_idx >= 0:
+            for tok in parts[macro_idx + 1:]:
+                t = tok.strip().rstrip(",")
+                if not t or t.startswith("&"):
+                    continue
+                if re.fullmatch(r"[A-Za-z@#$][A-Za-z0-9@#$]{0,7}", t):
+                    name_token = t
+                    break
+        else:
+            # Form B: classic prototype after a standalone MACRO line:
+            #   &LABEL OPEN &P1,&P2
+            #   OPEN &P1,&P2
+            if parts[0].startswith("&") and len(parts) >= 2:
+                cand = parts[1]
+            else:
+                cand = parts[0]
+            if re.fullmatch(r"[A-Za-z@#$][A-Za-z0-9@#$]{0,7}", cand):
+                name_token = cand
+
+        if not name_token:
+            return "", ""
+
+        name = name_token.strip().upper()
+        if name_token in header_body:
+            operands = header_body.split(name_token, 1)[1].strip()
+        else:
+            operands = ""
+        return name, operands
 
     def _discover_equ_aliases(self) -> dict[str, str]:
         aliases: dict[str, str] = {}
@@ -616,8 +656,8 @@ class LightParser:
     def _find_subroutine(self, name: str) -> list[str] | None:
         """Search all source files for a ``<name>  IN … OUT`` block.
 
-        If no IN/OUT block is found, falls back to a ``<name>  EQU  *``
-        table block (common for translation/dispatch tables).  The EQU *
+        If no IN/OUT block is found, falls back to a ``<name>  EQU ...``
+        table/anchor block (common for dispatch tables).  The EQU block
         block ends immediately before the next labeled statement (a line
         whose first character is not a space, tab, or ``*``).
 
@@ -625,9 +665,9 @@ class LightParser:
         """
         in_re = _in_pattern(name)
         equ_re = re.compile(
-            _EQU_STAR_RE_TEMPLATE.format(name=re.escape(name)), re.IGNORECASE
+            rf"^{re.escape(name)}\s+EQU\b", re.IGNORECASE
         )
-        equ_candidate: list[str] | None = None   # best EQU * match seen so far
+        equ_candidate: list[str] | None = None   # best EQU match seen so far
 
         for f in self._search_files():
             try:
