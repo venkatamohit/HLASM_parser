@@ -643,6 +643,10 @@ class LightParser:
                 out.append("".join(cur).strip())
                 cur = []
                 continue
+            # Space or tab at depth 0 terminates the HLASM operand field;
+            # everything after is an inline comment or sequence number.
+            if ch in (" ", "\t") and depth == 0:
+                break
             cur.append(ch)
         if cur:
             out.append("".join(cur).strip())

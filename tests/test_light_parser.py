@@ -2474,3 +2474,145 @@ class TestLoadEpAndCallResolution:
         call_names = [c["name"] for c in mysub_node["calls"]]
         assert "MYBOOK" in call_names
         assert mysub_node.get("ref") is not True
+
+
+# ---------------------------------------------------------------------------
+# TestInlineCommentTerminator
+# Verifies that _split_operands stops at the first whitespace at depth 0
+# so that inline comments and sequence numbers do not bleed into operand
+# values.  Uses only synthetic names; no real-world data.
+# ---------------------------------------------------------------------------
+
+
+class TestInlineCommentTerminator:
+    """_split_operands must stop at the first space/tab outside parens/quotes."""
+
+    # ── unit-level: _split_operands directly ─────────────────────────────────
+
+    def test_single_operand_with_trailing_comment(self):
+        """Space after operand terminates the field; comment is ignored."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("ALPHA     SOME INLINE COMMENT")
+        assert result == ["ALPHA"]
+
+    def test_multiple_operands_with_trailing_comment(self):
+        """Comma-separated operands parsed; trailing comment discarded."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("FIELD1,FIELD2     * note")
+        assert result == ["FIELD1", "FIELD2"]
+
+    def test_ep_operand_with_inline_comment(self):
+        """EP=NAME followed by spaces and comment yields one token EP=NAME."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("EP=MYMOD     LOAD MY MODULE  00001000")
+        assert result == ["EP=MYMOD"]
+
+    def test_operand_with_sequence_number_suffix(self):
+        """Eight-digit sequence number after spaces is not included in operand."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("MYFIELD,5     00001000")
+        assert result == ["MYFIELD", "5"]
+
+    def test_paren_expression_with_trailing_comment(self):
+        """Parenthesised expression preserved; trailing whitespace stops scan."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("12(13)     base/displacement")
+        assert result == ["12(13)"]
+
+    def test_quoted_string_with_trailing_comment(self):
+        """Quoted string may contain spaces; scan stops at space after closing quote."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("'HELLO'     comment here")
+        assert result == ["'HELLO'"]
+
+    def test_tab_terminates_operand_field(self):
+        """Tab character at depth 0 also terminates the operand field."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("ALPHA\tCOMMENT")
+        assert result == ["ALPHA"]
+
+    def test_empty_operand_text_returns_empty(self):
+        """Empty input still returns empty list."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        result = LightParser._split_operands("")
+        assert result == []
+
+    # ── integration: LOAD EP= with inline comment ────────────────────────────
+
+    def test_load_ep_with_inline_comment_detected(self, tmp_path):
+        """LOAD EP=MODNAME followed by inline comment correctly adds MODNAME to flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MODNAME     LOAD THE MODULE  00001000
+                 BR    14
+                 OUT
+        MODNAME  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MODNAME" in lp.flow.get("SUBA", [])
+
+    def test_load_ep_with_seq_number_chunk_exists(self, tmp_path):
+        """LOAD EP=MODNAME with appended sequence number still creates the chunk."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 LOAD  EP=MODNAME     LOAD THE MODULE  00001000
+                 BR    14
+                 OUT
+        MODNAME  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MODNAME" in lp.chunks
+
+    # ── integration: COPY with trailing content ───────────────────────────────
+
+    def test_copy_with_trailing_comment_detected(self, tmp_path):
+        """COPY CBNAME followed by inline comment correctly adds CBNAME to flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 COPY  CBNAME     COPY THE BOOK  00002000
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "driver.asm"
+        driver.write_text(src)
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        (deps_dir / "CBNAME.cpy").write_text("* copybook content\n         DS    CL8\n")
+        out = tmp_path / "out"
+        lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
+        lp.run(1, src.count("\n"))
+        assert "CBNAME" in lp.flow.get("SUBA", [])
+
+    def test_copy_with_trailing_comment_chunk_created(self, tmp_path):
+        """COPY with inline comment still creates a chunk file for the copybook."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 COPY  CBNAME     COPY THE BOOK  00002000
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "driver.asm"
+        driver.write_text(src)
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        (deps_dir / "CBNAME.cpy").write_text("* copybook content\n         DS    CL8\n")
+        out = tmp_path / "out"
+        lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
+        lp.run(1, src.count("\n"))
+        assert "CBNAME" in lp.chunks
