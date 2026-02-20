@@ -304,8 +304,11 @@ of specific macro names.
 
 When `L Rx,=V(TABLENAME)` is seen and `TABLENAME` has no `IN`/`OUT` block,
 the parser falls back to locating `TABLENAME  EQU  *`.  The table block
-extends until the next labeled statement (non-blank column 1).  Any macro
+extends until the first `EJECT` directive (HLASM's natural page/section
+separator).  Labeled statements inside the table are included.  Any macro
 invocations inside that block are resolved the same way as in regular code.
+
+`NAME EQU symbolname` (symbol alias, no `*`) captures only that single line.
 
 ### Chunk boundary rules
 
@@ -313,7 +316,101 @@ invocations inside that block are resolved the same way as in regular code.
 |---|---|
 | `NAME  IN` … `OUT` | Primary form. Block starts at IN, ends at OUT (inclusive). |
 | `NAME  IN` … next `NAME IN` | OUT omitted – block ends just before the next IN header. |
-| `NAME  EQU  *` | Fallback. Block extends until next labeled statement. IN/OUT wins if both exist. |
+| `NAME  EQU  *` | Fallback for dispatch tables. Block extends until first EJECT. IN/OUT wins if both exist. |
+| `NAME  EQU  sym` | Alias form. Captures only the single EQU line. |
+
+### Nested flow JSON for documentation generation
+
+The flat `flow.json` tells you *what* calls *what*, but to generate documentation
+for (say) the main loop you still have to open each chunk file separately to see
+what it does.  The **nested flow** format solves this by embedding every chunk's
+source lines directly into a single hierarchical JSON tree.
+
+#### What it contains
+
+```
+cfg/nested_flow.json
+├── format        "nested_flow_v1"
+├── entry         "main"
+├── chunks        flat dict: name → { kind, tags, line_count, source_lines }
+├── tree          recursive call tree (see below)
+└── missing       names that could not be resolved
+```
+
+The `tree` node schema:
+
+| Field | Description |
+|---|---|
+| `name` | Chunk name |
+| `kind` | `"sub"` or `"macro"` |
+| `tags` | e.g. `["entry"]`, `["macro"]` |
+| `source_lines` | Raw HLASM source lines (present on first visit only) |
+| `calls` | Ordered list of child nodes |
+| `ref` | `true` when this node was already expanded higher up (shared callee) |
+
+Nodes that are called from multiple places are **fully expanded on the first
+visit** and appear as lightweight `{ "name": "…", "ref": true }` stubs on
+subsequent visits, so the tree is finite even for programs with shared helpers.
+
+#### Example
+
+```json
+{
+  "format": "nested_flow_v1",
+  "entry": "main",
+  "chunks": {
+    "main":     { "kind": "sub",   "tags": ["entry"],   "line_count": 57, "source_lines": ["…"] },
+    "VALIDATE": { "kind": "sub",   "tags": [],          "line_count": 84, "source_lines": ["…"] },
+    "MYMACRO":  { "kind": "macro", "tags": ["macro"],   "line_count": 12, "source_lines": ["…"] },
+    "ERRORS":   { "kind": "sub",   "tags": [],          "line_count": 48, "source_lines": ["…"] }
+  },
+  "tree": {
+    "name": "main", "kind": "sub", "tags": ["entry"],
+    "source_lines": ["…"],
+    "calls": [
+      {
+        "name": "VALIDATE", "kind": "sub", "tags": [],
+        "source_lines": ["…"],
+        "calls": [
+          { "name": "ERRORS", "kind": "sub", "tags": [], "source_lines": ["…"], "calls": [] }
+        ]
+      },
+      {
+        "name": "MYMACRO", "kind": "macro", "tags": ["macro"],
+        "source_lines": ["…"],
+        "calls": [
+          { "name": "TCR050", "kind": "sub", "source_lines": ["…"], "calls": [] }
+        ]
+      },
+      { "name": "ERRORS", "ref": true }
+    ]
+  },
+  "missing": []
+}
+```
+
+#### Python API
+
+```python
+lp.run(59, 115)
+nf = lp.to_nested_flow()        # dict
+nf_str = lp.to_nested_flow_str()  # JSON string
+```
+
+#### CLI flag
+
+Add `--nested-flow` to any `--light-parser` invocation:
+
+```bash
+python -m hlasm_parser DRIVER.asm \
+    -c ./deps --light-parser \
+    --start-line 59 --end-line 115 \
+    -s ./out \
+    --nested-flow
+```
+
+This writes `out/cfg/nested_flow.json` alongside the existing `flow.json` and
+`cfg.dot`.
 
 ### CLI
 
@@ -413,7 +510,7 @@ Place copybooks in a directory and name them `<MACRONAME>_Assembler_Copybook.txt
 ## Running Tests
 
 ```bash
-pytest                              # all 351 tests
+pytest                              # all 373 tests
 pytest -v --tb=short                # verbose
 pytest tests/test_parser.py         # single module
 pytest tests/test_light_parser.py   # light parser only

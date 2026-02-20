@@ -247,6 +247,73 @@ class LightParser:
                     lines.append(f"  class {name} macro;")
         return "\n".join(lines)
 
+    def to_nested_flow(self) -> dict:
+        """Return a nested call-tree dict for documentation generation.
+
+        Intended use
+        ------------
+        A documentation generator (e.g. LLM-based) can read this single file
+        to understand the *full* call context of every subroutine without
+        having to open and cross-reference individual chunk files.
+
+        Schema
+        ------
+        ``chunks`` (flat dict, keyed by name):
+            kind         – ``"sub"`` | ``"macro"``
+            tags         – list of string tags (e.g. ``["entry"]``, ``["macro"]``)
+            line_count   – number of source lines in the chunk
+            source_lines – raw source lines (list of str)
+
+        ``tree`` (recursive node):
+            name         – chunk name
+            kind / tags  – same as chunks dict entry
+            source_lines – raw source lines (absent on ref-stub nodes)
+            calls        – ordered list of child nodes
+            ref          – ``True`` when this node was already fully expanded
+                           higher up in the tree (avoids duplication and
+                           infinite recursion on shared/cyclic callees)
+
+        ``missing`` – names that could not be resolved in any source file.
+        """
+        # ── flat catalogue ────────────────────────────────────────────────
+        chunks_dict: dict[str, dict] = {}
+        for name, lines in self.chunks.items():
+            chunks_dict[name] = {
+                "kind": self.chunk_kinds.get(name, "sub"),
+                "tags": self.node_tags.get(name, []),
+                "line_count": len(lines),
+                "source_lines": lines,
+            }
+
+        # ── recursive tree (DFS; each node fully expanded once) ───────────
+        expanded: set[str] = set()
+
+        def build_node(name: str) -> dict:
+            if name in expanded:
+                # Already expanded higher up – return a lightweight ref stub.
+                return {"name": name, "ref": True}
+            expanded.add(name)
+            info = chunks_dict.get(name, {})
+            return {
+                "name": name,
+                "kind": info.get("kind", "sub"),
+                "tags": info.get("tags", []),
+                "source_lines": info.get("source_lines", []),
+                "calls": [build_node(child) for child in self.flow.get(name, [])],
+            }
+
+        return {
+            "format": "nested_flow_v1",
+            "entry": "main",
+            "chunks": chunks_dict,
+            "tree": build_node("main"),
+            "missing": self.missing,
+        }
+
+    def to_nested_flow_str(self) -> str:
+        """Return :meth:`to_nested_flow` serialised as an indented JSON string."""
+        return json.dumps(self.to_nested_flow(), indent=2)
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------

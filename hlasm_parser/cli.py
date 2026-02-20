@@ -142,6 +142,17 @@ def _build_parser() -> argparse.ArgumentParser:
              "Used with --light-parser.",
     )
     p.add_argument(
+        "--nested-flow",
+        action="store_true",
+        default=False,
+        help=(
+            "Write cfg/nested_flow.json: a fully nested call-tree with source "
+            "lines embedded at each node.  Designed for documentation generators "
+            "that need complete call context in a single file without opening "
+            "individual chunk files.  Used with --light-parser."
+        ),
+    )
+    p.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose (DEBUG) logging",
@@ -333,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
         cfg_file = cfg_dir / f"cfg{cfg_suffix}"
         cfg_file.write_text(cfg_text, encoding="utf-8")
         print(f"  cfg   → {cfg_file}", file=sys.stderr)
+
+        if args.nested_flow:
+            nf_file = cfg_dir / "nested_flow.json"
+            nf_file.write_text(lp.to_nested_flow_str(), encoding="utf-8")
+            print(f"  nested→ {nf_file}", file=sys.stderr)
 
         if lp.missing:
             print(

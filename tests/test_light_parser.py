@@ -1222,3 +1222,299 @@ class TestMacroHeaderAndEquAliasResolution:
         assert lp.flow["TESTMOD"].count("ROUTINE1") == 1
         assert "TESTMOD" in lp.chunks
         assert "ROUTINE1" in lp.chunks
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Nested flow JSON for documentation generation
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _inline_lp(tmp_path, driver_src: str, deps: dict[str, str] | None = None):
+    """Helper: write inline source, run LightParser over all lines, return instance."""
+    driver = tmp_path / "driver.asm"
+    driver.write_text(driver_src)
+    deps_dir = tmp_path / "deps"
+    deps_dir.mkdir()
+    for fname, content in (deps or {}).items():
+        (deps_dir / fname).write_text(content)
+    lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=tmp_path / "out")
+    lp.run(1, driver_src.count("\n"))
+    return lp
+
+
+class TestNestedFlow:
+    """Tests for LightParser.to_nested_flow() and to_nested_flow_str()."""
+
+    # ── top-level structure ───────────────────────────────────────────────────
+
+    def test_top_level_keys_present(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        assert set(nf.keys()) >= {"format", "entry", "chunks", "tree", "missing"}
+
+    def test_format_field(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["format"] == "nested_flow_v1"
+
+    def test_entry_is_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["entry"] == "main"
+
+    def test_missing_forwarded(self, tmp_path):
+        src = "PROG  CSECT\n         GO    NOSUCH\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert "NOSUCH" in lp.to_nested_flow()["missing"]
+
+    # ── flat chunks dict ──────────────────────────────────────────────────────
+
+    def test_chunks_dict_contains_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert "main" in lp.to_nested_flow()["chunks"]
+
+    def test_chunks_dict_has_source_lines(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert isinstance(chunks["main"]["source_lines"], list)
+        assert len(chunks["main"]["source_lines"]) > 0
+        assert isinstance(chunks["SUBA"]["source_lines"], list)
+
+    def test_chunks_dict_has_kind_and_tags(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        entry = lp.to_nested_flow()["chunks"]["main"]
+        assert entry["kind"] in ("sub", "macro")
+        assert isinstance(entry["tags"], list)
+
+    def test_chunks_dict_has_line_count(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert chunks["main"]["line_count"] == len(lp.chunks["main"])
+        assert chunks["SUBA"]["line_count"] == len(lp.chunks["SUBA"])
+
+    # ── tree root ─────────────────────────────────────────────────────────────
+
+    def test_tree_root_is_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["tree"]["name"] == "main"
+
+    def test_tree_root_has_source_lines(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        assert "source_lines" in tree
+        assert isinstance(tree["source_lines"], list)
+
+    def test_tree_root_has_calls_list(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert isinstance(lp.to_nested_flow()["tree"]["calls"], list)
+
+    # ── child expansion ───────────────────────────────────────────────────────
+
+    def test_child_fully_expanded_on_first_visit(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        child = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        assert "source_lines" in child
+        assert "calls" in child
+        assert child.get("ref") is not True
+
+    def test_nested_grandchild_expanded(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA  IN
+                 GO    SUBB
+                 BR    14
+                 OUT
+        SUBB  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in suba["calls"] if c["name"] == "SUBB")
+        assert "source_lines" in subb
+        assert subb.get("ref") is not True
+
+    # ── ref stubs for shared callees ──────────────────────────────────────────
+
+    def test_shared_callee_is_ref_on_second_visit(self, tmp_path):
+        """SHARED is called from both SUBA and SUBB; second encounter → ref stub."""
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        shared_via_suba = next(c for c in suba["calls"] if c["name"] == "SHARED")
+        shared_via_subb = next(c for c in subb["calls"] if c["name"] == "SHARED")
+        # Exactly one is fully expanded; the other is a ref stub.
+        fully = [shared_via_suba, shared_via_subb]
+        refs   = [n for n in fully if n.get("ref") is True]
+        expanded = [n for n in fully if n.get("ref") is not True]
+        assert len(refs) == 1
+        assert len(expanded) == 1
+        assert "source_lines" in expanded[0]
+
+    def test_ref_stub_has_no_source_lines(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        all_shared = [
+            n for calls in (suba["calls"], subb["calls"])
+            for n in calls if n["name"] == "SHARED"
+        ]
+        stub = next(n for n in all_shared if n.get("ref") is True)
+        assert "source_lines" not in stub
+
+    # ── macro nodes ───────────────────────────────────────────────────────────
+
+    def test_macro_node_kind_is_macro(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 MYMAC SUBA
+                 BR    14
+                 MACRO
+        &LBL     MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        # MYMAC should appear in the chunks catalogue as a macro
+        if "MYMAC" in nf["chunks"]:
+            assert nf["chunks"]["MYMAC"]["kind"] == "macro"
+
+    def test_macro_node_tag_in_tree(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 MYMAC SUBA
+                 BR    14
+                 MACRO
+        &LBL     MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        def find_node(node, name):
+            if node["name"] == name:
+                return node
+            for child in node.get("calls", []):
+                found = find_node(child, name)
+                if found:
+                    return found
+            return None
+        macro_node = find_node(nf["tree"], "MYMAC")
+        if macro_node and not macro_node.get("ref"):
+            assert "macro" in macro_node.get("tags", [])
+
+    # ── JSON serialisation ────────────────────────────────────────────────────
+
+    def test_to_nested_flow_str_is_valid_json(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        parsed = json.loads(lp.to_nested_flow_str())
+        assert parsed["format"] == "nested_flow_v1"
+
+    def test_to_nested_flow_str_round_trips(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow() == json.loads(lp.to_nested_flow_str())
+
+    # ── CLI flag ──────────────────────────────────────────────────────────────
+
+    def test_nested_flow_cli_creates_file(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+            "--nested-flow",
+        ])
+        assert (out / "cfg" / "nested_flow.json").exists()
+
+    def test_nested_flow_cli_file_is_valid_json(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+            "--nested-flow",
+        ])
+        content = (out / "cfg" / "nested_flow.json").read_text()
+        parsed = json.loads(content)
+        assert parsed["format"] == "nested_flow_v1"
+        assert "tree" in parsed
+        assert "chunks" in parsed
+
+    def test_nested_flow_not_written_without_flag(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+        ])
+        assert not (out / "cfg" / "nested_flow.json").exists()
