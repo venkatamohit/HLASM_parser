@@ -61,6 +61,7 @@ _ANY_IN_RE = re.compile(r"^\w+\s+IN\b", re.IGNORECASE)
 _EQU_STAR_RE_TEMPLATE = r"^{name}\s+EQU\s+\*"
 _MACRO_START_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MACRO\b", re.IGNORECASE)
 _MEND_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MEND\b", re.IGNORECASE)
+_EJECT_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?EJECT\b", re.IGNORECASE)
 
 # Generic dispatch-style macro pattern with a target as the 3rd operand.
 # Example: FOO 05,0,TCR051,1002  ->  TCR051
@@ -133,6 +134,8 @@ class LightParser:
         self.macro_nodes: set[str] = set()
         # node -> tags for serialised graph output
         self.node_tags: dict[str, list[str]] = {"main": ["entry"]}
+        # node -> chunk kind (sub|macro)
+        self.chunk_kinds: dict[str, str] = {"main": "sub"}
 
     # ------------------------------------------------------------------
     # Public API
@@ -166,9 +169,9 @@ class LightParser:
                     self.flow[parent].append(macro_name)
                 self.flow.setdefault(macro_name, [])
                 self.node_tags[macro_name] = ["macro"]
+                self.chunk_kinds[macro_name] = "macro"
                 if macro_name not in visited:
                     visited.add(macro_name)
-                    self._save_chunk(macro_name, self.macros[macro_name].lines)
                     queue.append((macro_name, self.macros[macro_name].lines))
                 for target in macro_targets:
                     target = self._resolve_equ_alias(target)
@@ -641,8 +644,8 @@ class LightParser:
 
     def _write_macro_chunks(self) -> None:
         for macro in self.macros.values():
-            macro_file = self.output_dir / f"{macro.name}__macro.txt"
-            macro_file.write_text("\n".join(macro.lines) + "\n", encoding="utf-8")
+            self.chunk_kinds[macro.name] = "macro"
+            self._save_chunk(macro.name, macro.lines, kind="macro")
 
     def _write_macro_catalog(self) -> None:
         payload = {
@@ -689,15 +692,15 @@ class LightParser:
                             return block
                     return block                  # EOF without OUT or next IN
 
-                # Secondary: EQU * table (kept as candidate; IN/OUT wins)
+                # Secondary: EQU anchor block (kept as candidate; IN/OUT wins)
                 if equ_candidate is None and equ_re.match(line):
                     block = [line]
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
-                        # A non-blank label in column 1 starts the next statement
-                        if next_line and next_line[0] not in (" ", "\t", "*"):
-                            break
                         block.append(next_line)
+                        # User-requested boundary: capture EQU block until first EJECT.
+                        if _EJECT_RE.match(next_line):
+                            break
                     equ_candidate = block
 
         return equ_candidate  # None if neither form was found
@@ -715,17 +718,19 @@ class LightParser:
         if target in self.macros:
             sub_lines = self.macros[target].lines
             self.node_tags[target] = ["macro"]
+            self.chunk_kinds[target] = "macro"
         else:
             sub_lines = self._find_subroutine(target)
+            self.chunk_kinds[target] = "sub"
         self.flow.setdefault(target, [])
         if sub_lines is None:
             self.missing.append(target)
             return
-        self._save_chunk(target, sub_lines)
+        self._save_chunk(target, sub_lines, kind=self.chunk_kinds.get(target, "sub"))
         queue.append((target, sub_lines))
 
-    def _save_chunk(self, name: str, lines: list[str]) -> None:
+    def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
-        (self.output_dir / f"{name}.txt").write_text(
+        (self.output_dir / f"{name}_{kind}.txt").write_text(
             "\n".join(lines) + "\n", encoding="utf-8"
         )
