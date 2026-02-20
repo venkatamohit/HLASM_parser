@@ -747,6 +747,16 @@ class TestLinkCallDetection:
         assert "SUBD" in lp.flow["main"]
         assert (tmp_path / "out" / "SUBD_sub.txt").exists()
 
+    def test_load_ep_with_underscore_name(self, tmp_path):
+        src = "PROG CSECT\n         LOAD  EP=SUB_MOD\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        (tmp_path / "SUB_MOD.asm").write_text("SUB_MOD  IN\n         BR    14\n         OUT\n")
+        lp = LightParser(driver_path=driver, deps_dir=tmp_path, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "SUB_MOD" in lp.flow["main"]
+        assert "SUB_MOD" in lp.chunks
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EQU * table and VTRAN dispatch-table support
@@ -1848,6 +1858,18 @@ class TestCopyAndCsectResolution:
         """)
         lp = _inline_lp(tmp_path, src)
         assert "MYBOOK" in lp.flow["main"]
+
+    def test_copy_directive_trailing_period_resolves_file(self, tmp_path):
+        """COPY MYBOOK. still resolves to MYBOOK file."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK.
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.flow["main"]
+        assert "MYBOOK" in lp.chunks
 
     def test_copy_before_go_order_preserved(self, tmp_path):
         """COPY on line 2, GO on line 3 → MYBOOK precedes SUBA in flow."""
