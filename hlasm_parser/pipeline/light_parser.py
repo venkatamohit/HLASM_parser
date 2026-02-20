@@ -165,6 +165,10 @@ class LightParser:
         while queue:
             parent, lines = queue.pop(0)
             for macro_name, macro_targets in self._find_macro_calls(lines, self.macros):
+                # Never create a self-referencing edge (macro body scanning
+                # can see its own prototype line as an apparent invocation).
+                if macro_name == parent:
+                    continue
                 if macro_name not in self.flow[parent]:
                     self.flow[parent].append(macro_name)
                 self.flow.setdefault(macro_name, [])
@@ -333,8 +337,12 @@ class LightParser:
         for line in lines:
             if line.startswith("*"):
                 continue
-            _, opcode, operand_field = LightParser._split_statement(line)
+            label, opcode, operand_field = LightParser._split_statement(line)
             if not opcode:
+                continue
+            # Skip macro prototype/header lines (label is a symbolic &-parameter).
+            # These live inside the MACRO…MEND block itself and are not call sites.
+            if label.startswith("&"):
                 continue
             op_u = opcode.upper()
             if op_u not in macro_names:
@@ -718,8 +726,12 @@ class LightParser:
                     block = [line]
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
+                        # Stop before the next labeled statement (non-blank col-1
+                        # that is not a comment).  This is the natural end of
+                        # an EQU * data table.
+                        if next_line and next_line[0] not in (" ", "\t", "*"):
+                            break
                         block.append(next_line)
-                        # User-requested boundary: capture EQU block until first EJECT.
                         if _EJECT_RE.match(next_line):
                             break
                     equ_candidate = block

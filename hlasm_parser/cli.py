@@ -302,19 +302,24 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"error: {e}", file=sys.stderr)
             return 2
 
+        base = Path(args.split_output)
+        chunks_dir = base / "chunks"
+        cfg_dir = base / "cfg"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+
         lp = LightParser(
             driver_path=args.source,
             deps_dir=args.copybook_path or None,
-            output_dir=args.split_output,
+            output_dir=chunks_dir,
         )
         lp.run(args.start_line, args.end_line)
 
-        # Always write JSON flow
-        flow_file = Path(args.split_output) / "flow.json"
+        # Always write JSON flow into cfg/
+        flow_file = cfg_dir / "flow.json"
         flow_file.write_text(lp.to_json_str(), encoding="utf-8")
         print(f"  flow  → {flow_file}", file=sys.stderr)
 
-        # Write CFG in the requested format (default dot)
+        # Write CFG in the requested format (default dot) into cfg/
         fmt = args.cfg_format
         if fmt == "mermaid":
             cfg_text = lp.to_mermaid()
@@ -325,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             cfg_text = lp.to_dot()
             cfg_suffix = ".dot"
-        cfg_file = Path(args.split_output) / f"cfg{cfg_suffix}"
+        cfg_file = cfg_dir / f"cfg{cfg_suffix}"
         cfg_file.write_text(cfg_text, encoding="utf-8")
         print(f"  cfg   → {cfg_file}", file=sys.stderr)
 

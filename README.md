@@ -174,6 +174,183 @@ Text output (`-f text`) appends a table at the end:
 
 ---
 
+## Light Parser
+
+The **Light Parser** is a fast, focused alternative to the full pipeline.
+Instead of complete instruction parsing it uses source-level markers and
+dynamically discovered macro definitions to extract subroutine chunks and
+build a call graph — with no external dependencies.
+
+Use it when your codebase follows the GO / L / IN / OUT convention and you
+need quick chunk extraction without full macro expansion.
+
+### How it works
+
+```
+Driver file  (lines start..end)
+      │
+      ▼  scan all source files for MACRO…MEND blocks
+      │    → builds macro catalog  (macros.json)
+      │    → writes each macro as a chunk tagged [macro]
+      │
+      ▼  extract main block  →  main_sub.txt
+      │
+      ▼  scan for call patterns:
+      │    GO / GOIF / GOIFNOT <name>
+      │    L  Rx,=V(<name>)  /  L  Rx,=A(<name>)
+      │    L  <name>                          (plain Link)
+      │    <MacroName> operands               (known macro invocation –
+      │                                        targets resolved from macro body)
+      │
+      ▼  for each <name> – BFS search for:
+      │    <name>  IN … OUT   (primary – subroutine block)
+      │    <name>  EQU  *     (fallback – dispatch/data table anchor)
+      │
+      ▼  recurse into each found block
+      │
+      ▼  write output:
+           chunks/   <name>_sub.txt   each subroutine chunk
+                     <name>_macro.txt each macro chunk
+           cfg/      flow.json        BFS call graph
+                     cfg.dot          Graphviz DOT
+                     cfg.mmd          Mermaid flowchart
+```
+
+### Python API
+
+```python
+from hlasm_parser.pipeline.light_parser import LightParser
+
+lp = LightParser(
+    driver_path="MAINPROG.asm",   # file containing the main flow
+    deps_dir="./deps",            # searched recursively for subroutine files
+    output_dir="./out/chunks",    # where chunk .txt files are written
+)
+
+# Extract lines 59-115 of the driver as the "main" block, then BFS-resolve
+lp.run(start_line=59, end_line=115)
+
+# Inspect results
+print(lp.flow)          # {"main": ["VALIDATE", "MYMACRO", ...], ...}
+print(lp.macros)        # discovered macro definitions keyed by name
+print(lp.missing)       # names that could not be found anywhere
+
+# Serialise the call graph
+lp.to_json_str()        # JSON  (flow + macro catalog + node tags)
+lp.to_dot()             # Graphviz DOT
+lp.to_mermaid()         # Mermaid flowchart
+```
+
+### Output structure
+
+```
+<split-output>/
+├── chunks/
+│   ├── main_sub.txt          main block
+│   ├── <name>_sub.txt        each resolved subroutine
+│   └── <name>_macro.txt      each discovered macro
+└── cfg/
+    ├── flow.json             BFS call graph + macro catalog + node tags
+    ├── cfg.dot               Graphviz DOT  (render: dot -Tpng cfg.dot)
+    └── cfg.mmd               Mermaid flowchart
+```
+
+### `flow.json` structure
+
+```json
+{
+  "entry": "main",
+  "flow": {
+    "main":     ["VALIDATE", "MYMACRO", "PROCESS"],
+    "MYMACRO":  ["TCR050", "TCR051"],
+    "VALIDATE": ["DBREAD", "ERRORS"]
+  },
+  "chunk_line_counts": { "main": 57, "VALIDATE": 84 },
+  "macro_catalog": [
+    { "name": "MYMACRO", "parameters": ["&P1"], "line_count": 8 }
+  ],
+  "node_tags": { "main": ["entry"], "MYMACRO": ["macro"] },
+  "missing": []
+}
+```
+
+### Call patterns detected
+
+| Pattern | Example | Captured name |
+|---|---|---|
+| `GO` / `GOIF` / `GOIFNOT` | `GO    VALIDATE` | `VALIDATE` |
+| V/A-type address constant | `L     R15,=V(CONVERT)` | `CONVERT` |
+| Plain Link | `L     EXTSUB` | `EXTSUB` |
+| Known macro invocation | `MYMACRO TCR050,1001` | resolved from macro body |
+
+### Macro discovery
+
+The parser scans all source files (driver + `deps_dir`) for `MACRO … MEND`
+blocks **before** starting the BFS.  Each discovered macro is:
+
+- Saved as `<NAME>_macro.txt` in the chunks directory.
+- Analysed for `GO`, `L`, and `L Rx,=V()` patterns that use formal
+  parameters — the parameters involved are recorded as *call params*.
+- Tagged `["macro"]` in `node_tags` so the graph can render macros
+  differently from plain subroutines.
+
+When the BFS encounters a macro invocation in source code, it maps the
+actual operands to the macro's call params and resolves each resulting
+symbol as a subroutine target.  This means any macro that dispatches to
+subroutines via its parameters is handled automatically — no hardcoding
+of specific macro names.
+
+### EQU * dispatch tables
+
+When `L Rx,=V(TABLENAME)` is seen and `TABLENAME` has no `IN`/`OUT` block,
+the parser falls back to locating `TABLENAME  EQU  *`.  The table block
+extends until the next labeled statement (non-blank column 1).  Any macro
+invocations inside that block are resolved the same way as in regular code.
+
+### Chunk boundary rules
+
+| Source pattern | Behaviour |
+|---|---|
+| `NAME  IN` … `OUT` | Primary form. Block starts at IN, ends at OUT (inclusive). |
+| `NAME  IN` … next `NAME IN` | OUT omitted – block ends just before the next IN header. |
+| `NAME  EQU  *` | Fallback. Block extends until next labeled statement. IN/OUT wins if both exist. |
+
+### CLI
+
+```bash
+python -m hlasm_parser DRIVER.asm \
+    -c ./deps \
+    --light-parser \
+    --start-line 59 \
+    --end-line 115 \
+    -s ./out
+```
+
+Produces `out/chunks/` (all `.txt` chunk files) and `out/cfg/` (graph files).
+Add `--cfg-format mermaid` to get `cfg.mmd` instead of `cfg.dot`.
+
+### Running the sample suite
+
+```python
+from hlasm_parser.pipeline.light_parser import LightParser
+from pathlib import Path
+
+lp = LightParser(
+    driver_path="tests/fixtures/light_parser/sample_suite/MAINPROG.asm",
+    deps_dir="tests/fixtures/light_parser/sample_suite/deps",
+    output_dir="tests/fixtures/light_parser/sample_suite/chunks",
+)
+lp.run(59, 115)
+
+cfg = Path("tests/fixtures/light_parser/sample_suite/cfg")
+cfg.mkdir(exist_ok=True)
+(cfg / "flow.json").write_text(lp.to_json_str())
+(cfg / "cfg.dot").write_text(lp.to_dot())
+(cfg / "cfg.mmd").write_text(lp.to_mermaid())
+```
+
+---
+
 ## Pipeline
 
 The parser applies five sequential passes (matching tape-z's pipeline):
@@ -236,9 +413,10 @@ Place copybooks in a directory and name them `<MACRONAME>_Assembler_Copybook.txt
 ## Running Tests
 
 ```bash
-pytest                         # all 231 tests
-pytest -v --tb=short           # verbose
-pytest tests/test_parser.py    # single module
+pytest                              # all 351 tests
+pytest -v --tb=short                # verbose
+pytest tests/test_parser.py         # single module
+pytest tests/test_light_parser.py   # light parser only
 ```
 
 ---
@@ -261,12 +439,19 @@ hlasm_parser/
 │   ├── mnemonics.py
 │   ├── extract_blocks.py
 │   ├── dependency_map.py
-│   └── hlasm_analysis.py
+│   ├── hlasm_analysis.py
+│   └── light_parser.py    – lightweight GO/L/macro + IN/OUT chunk extractor
 ├── chunker/
 │   └── chunker.py
 └── cli.py
 tests/
-├── fixtures/              – sample HLASM files + macro copybooks
+├── fixtures/
+│   ├── light_parser/
+│   │   ├── driver.asm     – inline subroutine fixture
+│   │   ├── deps/          – external subroutine files
+│   │   └── sample_suite/  – payroll example (MAINPROG + deps + pre-built chunks)
+│   └── ...                – other HLASM sample files + macro copybooks
+├── test_light_parser.py
 ├── test_passes.py
 ├── test_parser.py
 ├── test_copybook.py
