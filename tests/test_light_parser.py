@@ -1794,3 +1794,326 @@ class TestCallOrderAndSeq:
         suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
         subb = next(c for c in suba["calls"] if c["name"] == "SUBB")
         assert subb["seq"] == 1  # SUBB is the only (first) call inside SUBA
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COPY directive, CSECT block, and copybook-file resolution
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCopyAndCsectResolution:
+    """COPY directive, CSECT block, and copybook file fallback strategies."""
+
+    # ── COPY directive ────────────────────────────────────────────────────────
+
+    def test_copy_directive_adds_copybook_to_flow(self, tmp_path):
+        """COPY MYBOOK in main → MYBOOK appears as a child in flow["main"]."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYBOOK" in lp.flow["main"]
+
+    def test_copy_before_go_order_preserved(self, tmp_path):
+        """COPY on line 2, GO on line 3 → MYBOOK precedes SUBA in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert "MYBOOK" in order
+        assert "SUBA" in order
+        assert order.index("MYBOOK") < order.index("SUBA")
+
+    def test_copy_resolved_from_deps_file(self, tmp_path):
+        """COPY MYBOOK → file deps/MYBOOK.cpy is found and captured as a chunk."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "* copybook content\n         DS    CL80\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.chunks
+        assert "MYBOOK" not in lp.missing
+
+    def test_copy_resolved_case_insensitive_filename(self, tmp_path):
+        """Copybook file matching is case-insensitive on the stem."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"mybook.asm": "* lowercase file\n         DS    CL40\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.chunks
+        assert "MYBOOK" not in lp.missing
+
+    def test_copy_chunk_kind_is_copybook(self, tmp_path):
+        """Resolved COPY targets get kind='copybook'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert lp.chunk_kinds.get("MYBOOK") == "copybook"
+
+    def test_copy_node_tagged_copybook(self, tmp_path):
+        """Resolved COPY target has node_tags=['copybook']."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert lp.node_tags.get("MYBOOK") == ["copybook"]
+
+    def test_copy_missing_when_no_file(self, tmp_path):
+        """COPY UNKNOWN with no matching file → UNKNOWN in missing list."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  UNKNOWN
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "UNKNOWN" in lp.missing
+
+    def test_copybook_appears_in_nested_flow_tree(self, tmp_path):
+        """Resolved COPY target appears in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        tree = lp.to_nested_flow()["tree"]
+        names = [c["name"] for c in tree["calls"]]
+        assert "MYBOOK" in names
+
+    def test_copybook_kind_in_nested_flow_chunks(self, tmp_path):
+        """Copybook kind 'copybook' is reflected in nested_flow chunks dict."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert chunks["MYBOOK"]["kind"] == "copybook"
+
+    def test_copybook_dot_coloured_lightgreen(self, tmp_path):
+        """Copybook nodes are coloured lightgreen in DOT output."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        dot = lp.to_dot()
+        assert "lightgreen" in dot
+
+    def test_copybook_mermaid_has_classDef(self, tmp_path):
+        """Mermaid output includes a copybook classDef when copybooks present."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        mmd = lp.to_mermaid()
+        assert "classDef copybook" in mmd
+        assert "class MYBOOK copybook;" in mmd
+
+    # ── CSECT block resolution ────────────────────────────────────────────────
+
+    def test_csect_block_resolved_as_fallback(self, tmp_path):
+        """<name> CSECT is found when no IN/OUT block exists for that name."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYSUB" in lp.chunks
+        assert "MYSUB" not in lp.missing
+
+    def test_csect_block_ends_at_ds_0f(self, tmp_path):
+        """CSECT block stops at (and includes) DS 0F."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 DS    0F
+        NEXTLBL  DS    CL10
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        # DS 0F line is included
+        assert any("DS" in ln and "0F" in ln for ln in chunk)
+        # NEXTLBL line is NOT included
+        assert not any("NEXTLBL" in ln for ln in chunk)
+
+    def test_csect_block_ends_at_eject(self, tmp_path):
+        """CSECT block stops before an EJECT directive."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 EJECT
+        AFTER    DS    CL10
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        assert not any("AFTER" in ln for ln in chunk)
+        assert not any("EJECT" in ln for ln in chunk)
+
+    def test_csect_block_stops_before_next_csect(self, tmp_path):
+        """CSECT block does not bleed into the next CSECT definition."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 BR    14
+        OTHER    CSECT
+                 MVI   FLAG2,C'N'
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        assert not any("OTHER" in ln for ln in chunk)
+        assert not any("FLAG2" in ln for ln in chunk)
+
+    def test_csect_chunk_kind_is_csect(self, tmp_path):
+        """CSECT-resolved targets get kind='csect'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert lp.chunk_kinds.get("MYSUB") == "csect"
+
+    def test_csect_node_tagged_csect(self, tmp_path):
+        """CSECT-resolved targets have node_tags=['csect']."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert lp.node_tags.get("MYSUB") == ["csect"]
+
+    def test_csect_appears_in_nested_flow_tree(self, tmp_path):
+        """CSECT-resolved target appears in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        names = [c["name"] for c in tree["calls"]]
+        assert "MYSUB" in names
+
+    def test_csect_dot_coloured_lightyellow(self, tmp_path):
+        """CSECT nodes are coloured lightyellow in DOT output."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        dot = lp.to_dot()
+        assert "lightyellow" in dot
+
+    def test_csect_mermaid_has_classDef(self, tmp_path):
+        """Mermaid output includes a csect classDef when CSECT nodes present."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        mmd = lp.to_mermaid()
+        assert "classDef csect" in mmd
+        assert "class MYSUB csect;" in mmd
+
+    def test_in_out_takes_priority_over_csect(self, tmp_path):
+        """IN/OUT block wins over CSECT when both match the same name."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    IN
+                 MVI   FLAG,C'Y'
+                 OUT
+        MYSUB    CSECT
+                 MVI   FLAG,C'Z'
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        # Must have taken the IN/OUT version (contains 'Y' not 'Z')
+        assert any("C'Y'" in ln for ln in chunk)
+        assert not any("C'Z'" in ln for ln in chunk)
+        assert lp.chunk_kinds.get("MYSUB") == "sub"
+
+    def test_csect_in_deps_file_resolved(self, tmp_path):
+        """CSECT block defined in a deps file is found and captured."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYMOD
+                 BR    14
+        """)
+        deps = {
+            "mymod.asm": textwrap.dedent("""\
+            MYMOD    CSECT
+                     MVI   X,C'A'
+                     BR    14
+                     DS    0F
+            """),
+        }
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYMOD" in lp.chunks
+        assert "MYMOD" not in lp.missing
+        assert lp.chunk_kinds.get("MYMOD") == "csect"

@@ -9,11 +9,14 @@ Flow
      * ``L Rx,=V(name)``  V-type address constant (primary Link form).
      * ``L <name>``  plain Link where the operand is a bare identifier.
      * Macro invocations resolved from discovered ``MACRO ... MEND`` blocks.
-3. For each *name*, search the driver + every file under *deps_dir* for a
-   block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
-   If no IN/OUT block is found, fall back to a ``<name>  EQU  *`` table
-   (common for dispatch/translation anchors).  The EQU *
-   block extends until the next labeled statement in the source.
+3. For each *name*, search the driver + every file under *deps_dir* using a
+   cascade of four strategies:
+     a. ``<name>  IN`` … ``OUT`` block (or the next ``IN`` marker).
+     b. ``<name>  EQU  *`` table (dispatch/translation anchor, until EJECT).
+     c. ``<name>  CSECT`` block (control-section definition, until DS 0F/EJECT/END).
+     d. Copybook file in *deps_dir* whose stem matches *name* (from ``COPY``
+        directive or as a resolution of any unresolved target).
+   ``COPY <name>`` statements are also detected as direct call edges.
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
 5. Expose the parent→children flow map via :meth:`to_json`, :meth:`to_dot`,
    and :meth:`to_mermaid`.
@@ -62,6 +65,16 @@ _EQU_STAR_RE_TEMPLATE = r"^{name}\s+EQU\s+\*"
 _MACRO_START_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MACRO\b", re.IGNORECASE)
 _MEND_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MEND\b", re.IGNORECASE)
 _EJECT_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?EJECT\b", re.IGNORECASE)
+
+# DS 0F / 0H / 0D / 0B — common HLASM alignment / section-boundary directive.
+_DS_ALIGN_RE = re.compile(r"^\s+DS\s+0[FHDB]\b", re.IGNORECASE)
+
+# END statement in opcode position (leading whitespace required to avoid
+# matching a label that starts with "END…").
+_END_RE = re.compile(r"^\s+END\b", re.IGNORECASE)
+
+# CSECT definition: <name> CSECT
+_CSECT_RE = re.compile(r"^\w[\w@#$]{0,7}\s+CSECT\b", re.IGNORECASE)
 
 # Generic dispatch-style macro pattern with a target as the 3rd operand.
 # Example: FOO 05,0,TCR051,1002  ->  TCR051
@@ -215,12 +228,19 @@ class LightParser:
             '  node [shape=box fontname="Courier"];',
         ]
         for name in self.flow:
+            kind = self.chunk_kinds.get(name, "sub")
             if name in missing_set:
                 colour = "red"
                 shape = "box"
-            elif name in self.macro_nodes:
+            elif kind == "macro":
                 colour = "khaki"
                 shape = "component"
+            elif kind == "copybook":
+                colour = "lightgreen"
+                shape = "note"
+            elif kind == "csect":
+                colour = "lightyellow"
+                shape = "box"
             else:
                 colour = "lightblue"
                 shape = "box"
@@ -242,6 +262,20 @@ class LightParser:
             for name in sorted(self.macro_nodes):
                 if name in self.flow:
                     lines.append(f"  class {name} macro;")
+        copybook_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "copybook" and n in self.flow
+        )
+        if copybook_nodes:
+            lines.append("  classDef copybook fill:#90ee90,stroke:#006400,stroke-width:1px;")
+            for name in copybook_nodes:
+                lines.append(f"  class {name} copybook;")
+        csect_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "csect" and n in self.flow
+        )
+        if csect_nodes:
+            lines.append("  classDef csect fill:#fffacd,stroke:#a0a000,stroke-width:1px;")
+            for name in csect_nodes:
+                lines.append(f"  class {name} csect;")
         return "\n".join(lines)
 
     def to_nested_flow(self) -> dict:
@@ -501,6 +535,14 @@ class LightParser:
                 if key not in seen_macro_keys:
                     seen_macro_keys.add(key)
                     result.append({"kind": "macro", "name": op_u, "targets": targets})
+                continue
+
+            # COPY directive — include the named copybook as a chunk in the flow.
+            # Pattern: (spaces) COPY  BOOKNAME
+            if op_u == "COPY" and operands:
+                cb = operands[0].strip().upper()
+                if cb and re.match(r"^[A-Z@#$][A-Z0-9@#$]{0,11}$", cb):
+                    _emit_direct(cb)
                 continue
 
             # Generic dispatch-style table entry (num,num,symbol,num)
@@ -906,14 +948,92 @@ class LightParser:
             self.node_tags[target] = ["macro"]
             self.chunk_kinds[target] = "macro"
         else:
+            # Resolution order:
+            #   1. IN / OUT block  or  EQU * table  (existing subroutine patterns)
+            #   2. <name> CSECT … DS 0F  (control-section definition)
+            #   3. Copybook file  (COPY <name> targets resolved to a deps file)
             sub_lines = self._find_subroutine(target)
-            self.chunk_kinds[target] = "sub"
+            if sub_lines is not None:
+                self.chunk_kinds[target] = "sub"
+            else:
+                sub_lines = self._find_csect_block(target)
+                if sub_lines is not None:
+                    self.chunk_kinds[target] = "csect"
+                    self.node_tags[target] = ["csect"]
+                else:
+                    sub_lines = self._find_copybook_file(target)
+                    if sub_lines is not None:
+                        self.chunk_kinds[target] = "copybook"
+                        self.node_tags[target] = ["copybook"]
+                    else:
+                        self.chunk_kinds[target] = "sub"
         self.flow.setdefault(target, [])
         if sub_lines is None:
             self.missing.append(target)
             return
         self._save_chunk(target, sub_lines, kind=self.chunk_kinds.get(target, "sub"))
         queue.append((target, sub_lines))
+
+    def _find_csect_block(self, name: str) -> list[str] | None:
+        """Search all source files for a ``<name> CSECT`` definition block.
+
+        Captures from the CSECT statement until the first of:
+        * A ``DS 0F / 0H / 0D / 0B`` alignment directive (included, then stop)
+        * The start of a *different* CSECT (excluded)
+        * An ``END`` statement (included, then stop)
+        * An ``EJECT`` directive (excluded)
+        * End of file
+
+        Returns the captured lines, or ``None`` if *name* has no CSECT.
+        """
+        csect_re = re.compile(rf"^{re.escape(name)}\s+CSECT\b", re.IGNORECASE)
+        for f in self._search_files():
+            try:
+                all_lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(all_lines):
+                if not csect_re.match(line):
+                    continue
+                block = [line]
+                for j in range(i + 1, len(all_lines)):
+                    next_line = all_lines[j]
+                    # DS alignment directive → include and stop
+                    if _DS_ALIGN_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # Another CSECT starts → stop before it
+                    if _CSECT_RE.match(next_line) and not csect_re.match(next_line):
+                        break
+                    # END statement → include and stop
+                    if _END_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # EJECT → natural page break, stop before it
+                    if _EJECT_RE.match(next_line):
+                        break
+                    block.append(next_line)
+                return block
+        return None
+
+    def _find_copybook_file(self, name: str) -> list[str] | None:
+        """Search *deps_dir* for a copybook file whose stem matches *name*.
+
+        Looks recursively under *deps_dir* for any file (regardless of
+        extension) whose base name without extension matches *name*
+        case-insensitively.  Returns the full file content as a list of
+        lines, or ``None`` if no matching file is found.
+        """
+        if not self.deps_dir or not self.deps_dir.is_dir():
+            return None
+        name_upper = name.upper()
+        for f in sorted(self.deps_dir.rglob("*")):
+            if f.is_file() and f.stem.upper() == name_upper:
+                try:
+                    return f.read_text(encoding="utf-8", errors="replace").splitlines()
+                except OSError:
+                    continue
+        return None
 
     def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
