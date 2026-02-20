@@ -19,6 +19,9 @@ Options
 --missing-deps-log    Write unresolved-dependency report to a JSON file.
 --cfg                 Emit a Control Flow Graph instead of chunk output.
 --cfg-format          CFG format: dot (default), json, or mermaid.
+--light-parser        Lightweight line-range + GO/IN/OUT extraction mode.
+--start-line N        First line of the main block (used with --light-parser).
+--end-line N          Last line of the main block (used with --light-parser).
 --verbose, -v         Enable DEBUG logging.
 
 Examples
@@ -30,6 +33,7 @@ Examples
     python -m hlasm_parser.cli program.asm -c ./macros -r -o result.json
     python -m hlasm_parser.cli program.asm -e ./pgms -r --missing-deps-log missing.json
     python -m hlasm_parser.cli program.asm -c ./macros -e ./pgms -s ./my_chunks
+    python -m hlasm_parser.cli driver.asm -c ./deps --light-parser --start-line 10 --end-line 50 -s ./chunks
 """
 from __future__ import annotations
 
@@ -111,6 +115,31 @@ def _build_parser() -> argparse.ArgumentParser:
             "Write one .asm file per chunk into DIR/<source-stem>/<label>.asm "
             "instead of producing a single combined output file."
         ),
+    )
+    p.add_argument(
+        "--light-parser",
+        action="store_true",
+        help=(
+            "Enable lightweight line-range extraction mode.  Requires "
+            "--start-line, --end-line, and --split-output (output directory).  "
+            "Uses --copybook-path as the dependencies search directory."
+        ),
+    )
+    p.add_argument(
+        "--start-line",
+        type=int,
+        default=0,
+        metavar="N",
+        help="First line of the main block to extract (1-indexed, inclusive). "
+             "Used with --light-parser.",
+    )
+    p.add_argument(
+        "--end-line",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Last line of the main block to extract (1-indexed, inclusive). "
+             "Used with --light-parser.",
     )
     p.add_argument(
         "--verbose", "-v",
@@ -253,6 +282,59 @@ def main(argv: list[str] | None = None) -> int:
         else:
             Path(args.output).write_text(output_text, encoding="utf-8")
             print(f"CFG written to {args.output}", file=sys.stderr)
+        return 0
+
+    # ------------------------------------------------------------------
+    # Light-parser mode
+    # ------------------------------------------------------------------
+    if args.light_parser:
+        from .pipeline.light_parser import LightParser
+
+        errors: list[str] = []
+        if not args.start_line:
+            errors.append("--start-line is required with --light-parser")
+        if not args.end_line:
+            errors.append("--end-line is required with --light-parser")
+        if not args.split_output:
+            errors.append("--split-output DIR is required with --light-parser")
+        if errors:
+            for e in errors:
+                print(f"error: {e}", file=sys.stderr)
+            return 2
+
+        lp = LightParser(
+            driver_path=args.source,
+            deps_dir=args.copybook_path or None,
+            output_dir=args.split_output,
+        )
+        lp.run(args.start_line, args.end_line)
+
+        # Always write JSON flow
+        flow_file = Path(args.split_output) / "flow.json"
+        flow_file.write_text(lp.to_json_str(), encoding="utf-8")
+        print(f"  flow  → {flow_file}", file=sys.stderr)
+
+        # Write CFG in the requested format (default dot)
+        fmt = args.cfg_format
+        if fmt == "mermaid":
+            cfg_text = lp.to_mermaid()
+            cfg_suffix = ".mmd"
+        elif fmt == "json":
+            cfg_text = lp.to_json_str()
+            cfg_suffix = "_cfg.json"
+        else:
+            cfg_text = lp.to_dot()
+            cfg_suffix = ".dot"
+        cfg_file = Path(args.split_output) / f"cfg{cfg_suffix}"
+        cfg_file.write_text(cfg_text, encoding="utf-8")
+        print(f"  cfg   → {cfg_file}", file=sys.stderr)
+
+        if lp.missing:
+            print(
+                f"\nWARNING: {len(lp.missing)} unresolved target(s): "
+                + ", ".join(lp.missing),
+                file=sys.stderr,
+            )
         return 0
 
     # ------------------------------------------------------------------

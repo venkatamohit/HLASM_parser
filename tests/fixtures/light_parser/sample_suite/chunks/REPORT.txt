@@ -1,0 +1,67 @@
+REPORT   IN
+         STM   R14,R12,12(R13)
+         BALR  R12,0
+         USING *,R12
+         ST    R13,RPSAVE+4
+         LA    R13,RPSAVE
+*
+* ---- Determine which type of report line to produce ----------
+         CLI   EMPLID,C' '        Is employee ID blank?
+         BE    RPTTOTAL           Yes – produce totals line
+*
+* ---- Detail line --------------------------------------------
+         MVC   PRTCTL,=C'0'       Double-space before line
+         MVC   PRTDATA,=CL132' '  Clear print line
+*
+* ---- Format all monetary amounts ---------------------------
+         GO    FORMAT              Invoke the formatter
+*
+* ---- Fill employee detail fields ---------------------------
+         MVC   PRTDATA+0(8),EMPLID
+         MVC   PRTDATA+10(30),EMPLNM
+         MVC   PRTDATA+41(4),EMPLDPT
+         MVC   PRTDATA+46(2),EMPLGRD
+*
+* ---- Move formatted monetary fields into print line --------
+         MVC   PRTDATA+48(14),FMTGRSS    Formatted gross pay
+         MVC   PRTDATA+63(14),FMTTAX     Formatted tax
+         MVC   PRTDATA+78(14),FMTDED     Formatted deductions
+         MVC   PRTDATA+93(14),FMTNPAY    Formatted net pay
+*
+* ---- Write the detail line ---------------------------------
+         PUT   RPTFILE,PRTLINE
+*
+* ---- Record this report event in the audit trail -----------
+         GO    AUDIT               Write report-generated audit
+*
+         B     RPEXIT
+*
+* ---- Totals line --------------------------------------------
+RPTTOTAL DS    0H
+         MVC   PRTCTL,=C'1'       Page eject before totals
+         MVC   PRTDATA,=CL132' '
+         MVC   PRTDATA+0(20),=CL20'*** PAYROLL TOTALS **'
+*
+* ---- Format the run totals ---------------------------------
+         ZAP   EMGROSS,TOTGROSS    Copy total to shared field
+         ZAP   EMNPAY, TOTNPAY
+         ZAP   EMTAX,  TOTTAX
+         ZAP   EMDED,  TOTDED
+         GO    FORMAT              Format the totals
+*
+         MVC   PRTDATA+48(14),FMTGRSS
+         MVC   PRTDATA+63(14),FMTTAX
+         MVC   PRTDATA+78(14),FMTDED
+         MVC   PRTDATA+93(14),FMTNPAY
+*
+         PUT   RPTFILE,PRTLINE
+*
+* ---- Audit the end-of-run report ---------------------------
+         GO    AUDIT               Audit the totals report write
+*
+* ---- Exit ---------------------------------------------------
+RPEXIT   DS    0H
+         L     R13,RPSAVE+4
+         LM    R14,R12,12(R13)
+         BR    R14
+         OUT

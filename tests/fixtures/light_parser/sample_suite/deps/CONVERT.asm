@@ -1,0 +1,170 @@
+* ================================================================
+* CONVERT  –  Currency and Data-Format Conversion Subroutine
+* ================================================================
+*
+* Called by: MAINPROG  (L R15,=V(CONVERT))
+*            VALIDATE  (L R15,=V(CONVERT))
+* Calls:     (none – leaf subroutine)
+*
+* Function:
+*   Performs all input-to-internal and internal-to-output
+*   format conversions needed by the payroll system:
+*
+*   1. ASCII → EBCDIC translation for any ASCII input fields
+*      (relevant when data arrives from a heterogeneous source)
+*
+*   2. Zoned-decimal → Packed-decimal for monetary fields
+*      EMPLSAL, EMPLHRS, EMPLRAT arrive as zoned decimal from
+*      the flat file; they must be packed before arithmetic.
+*
+*   3. Sign normalisation: ensure all packed fields have a
+*      positive sign nibble (X'C') unless genuinely negative.
+*
+*   4. Period (PAYPER) validation and expansion:
+*      PAYPER "202403" → PAYPERA "MARCH 2024"
+*
+*   5. Grade-code expansion:
+*      EMPLGRD "01"-"20" → GRDDESC "ANALYST" / "SENIOR" / etc.
+*
+* Exit:
+*   R15 = 0   all conversions successful
+*   R15 = 4   one or more fields had invalid source data;
+*             CVERRMSG contains description of first error
+* ================================================================
+*
+CONVERT  IN
+         STM   R14,R12,12(R13)
+         BALR  R12,0
+         USING *,R12
+         ST    R13,CVSAVE+4
+         LA    R13,CVSAVE
+         XR    R15,R15             Preset return code = 0
+         ST    R15,CVRC            Clear local return code
+*
+* ---- 1. Translate ASCII input if flag set -------------------
+         TM    CVFLAGS,X'80'       ASCII input flag set?
+         BNO   CVPACK              No – skip translation
+         TR    INREC(200),CVTABLE  Translate entire record
+*
+* ---- 2. Pack monetary / numeric input fields ---------------
+CVPACK   DS    0H
+*       Pack annual salary (EMPLSAL: 13-byte zoned → PL6 packed)
+         PACK  EMPLSAL,EMPLSALZ    Convert salary
+         TM    EMPLSAL+5,X'0F'     Valid sign nibble?
+         BNO   CVBADSAL
+*       Pack hourly rate  (EMPLRAT: 12-byte zoned → PL6)
+         PACK  EMPLRAT,EMPLRATZ
+         TM    EMPLRAT+5,X'0F'
+         BNO   CVBADRAT
+*       Pack hours worked (EMPLHRS: 8-byte zoned → PL4)
+         PACK  EMPLHRS,EMPLHRSZ
+         TM    EMPLHRS+3,X'0F'
+         BNO   CVBADHRS
+*
+* ---- 3. Normalise sign nibbles to X'C' (positive) ----------
+         OI    EMPLSAL+5,X'0C'     Force positive sign
+         OI    EMPLRAT+5,X'0C'
+         OI    EMPLHRS+3,X'0C'
+*
+* ---- 4. Expand pay period PAYPER to text -------------------
+         MVC   CVMONTH,PAYPER+4(2)  Extract month digits (MM)
+         CLI   CVMONTH,C'01'        January?
+         BE    CVJAN
+         CLI   CVMONTH,C'02'
+         BE    CVFEB
+         CLI   CVMONTH,C'03'
+         BE    CVMAR
+         CLI   CVMONTH,C'04'
+         BE    CVAPR
+         CLI   CVMONTH,C'05'
+         BE    CVMAY
+         CLI   CVMONTH,C'06'
+         BE    CVJUN
+         CLI   CVMONTH,C'07'
+         BE    CVJUL
+         CLI   CVMONTH,C'08'
+         BE    CVAUG
+         CLI   CVMONTH,C'09'
+         BE    CVSEP
+         CLI   CVMONTH,C'10'
+         BE    CVOCT
+         CLI   CVMONTH,C'11'
+         BE    CVNOV
+         CLI   CVMONTH,C'12'
+         BE    CVDEC
+         MVC   CVERRMSG,=CL40'Invalid month code in PAYPER     '
+         LA    R15,4
+         B     CVEXIT
+*
+CVJAN    MVC   PAYPERA(7),=CL7'JANUARY'  ;B CVCONT
+CVFEB    MVC   PAYPERA(8),=CL8'FEBRUARY' ;B CVCONT
+CVMAR    MVC   PAYPERA(5),=CL5'MARCH'    ;B CVCONT
+CVAPR    MVC   PAYPERA(5),=CL5'APRIL'    ;B CVCONT
+CVMAY    MVC   PAYPERA(3),=CL3'MAY'      ;B CVCONT
+CVJUN    MVC   PAYPERA(4),=CL4'JUNE'     ;B CVCONT
+CVJUL    MVC   PAYPERA(4),=CL4'JULY'     ;B CVCONT
+CVAUG    MVC   PAYPERA(6),=CL6'AUGUST'   ;B CVCONT
+CVSEP    MVC   PAYPERA(9),=CL9'SEPTEMBER';B CVCONT
+CVOCT    MVC   PAYPERA(7),=CL7'OCTOBER'  ;B CVCONT
+CVNOV    MVC   PAYPERA(8),=CL8'NOVEMBER' ;B CVCONT
+CVDEC    MVC   PAYPERA(8),=CL8'DECEMBER'
+*
+CVCONT   DS    0H
+         MVC   PAYPERA+10(4),PAYPER(4)   Append year
+*
+* ---- 5. Expand grade code to description -------------------
+         MVC   CVGR,EMPLGRD        Copy grade (2 chars)
+         CLC   CVGR,=CL2'01'
+         BE    CVGR01
+         CLC   CVGR,=CL2'05'
+         BE    CVGR05
+         CLC   CVGR,=CL2'10'
+         BE    CVGR10
+         CLC   CVGR,=CL2'15'
+         BE    CVGR15
+         CLC   CVGR,=CL2'20'
+         BE    CVGR20
+         MVC   GRDDESC,=CL10'SPECIALIST'
+         B     CVEXIT
+CVGR01   MVC   GRDDESC,=CL10'TRAINEE   '  ;B CVEXIT
+CVGR05   MVC   GRDDESC,=CL10'ANALYST   '  ;B CVEXIT
+CVGR10   MVC   GRDDESC,=CL10'SENIOR    '  ;B CVEXIT
+CVGR15   MVC   GRDDESC,=CL10'MANAGER   '  ;B CVEXIT
+CVGR20   MVC   GRDDESC,=CL10'DIRECTOR  '
+*
+CVBADSAL DS    0H
+         MVC   CVERRMSG,=CL40'Invalid packed salary field       '
+         LA    R15,4 ;B CVEXIT
+CVBADRAT DS    0H
+         MVC   CVERRMSG,=CL40'Invalid packed hourly rate        '
+         LA    R15,4 ;B CVEXIT
+CVBADHRS DS    0H
+         MVC   CVERRMSG,=CL40'Invalid packed hours-worked field '
+         LA    R15,4
+*
+* ---- Exit --------------------------------------------------
+CVEXIT   DS    0H
+         L     R13,CVSAVE+4
+         LM    R14,R12,12(R13)
+         BR    R14
+         OUT
+*
+* ---- Local working storage ---------------------------------
+CVSAVE   DC    18F'0'
+CVRC     DC    F'0'               Return code work field
+CVFLAGS  DC    X'00'              Bit flags (80=ASCII input)
+CVMONTH  DC    CL2' '             Month digits from PAYPER
+CVGR     DC    CL2' '             Grade code copy
+CVERRMSG DC    CL40' '            Conversion error description
+*
+* ---- Shared fields -----------------------------------------
+EMPLSALZ DS    CL13               Zoned-decimal salary input
+EMPLRATZ DS    CL12               Zoned-decimal hourly rate
+EMPLHRSZ DS    CL8                Zoned-decimal hours worked
+PAYPERA  DC    CL14' '            Expanded pay period text
+GRDDESC  DC    CL10' '            Expanded grade description
+*
+* ---- ASCII-to-EBCDIC translate table (256 bytes) -----------
+CVTABLE  DC    256XL1'00'         (abbreviated – full table omitted)
+*
+         LTORG

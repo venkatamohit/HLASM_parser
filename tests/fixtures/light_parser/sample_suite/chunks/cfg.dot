@@ -1,0 +1,29 @@
+digraph LightParserCFG {
+  rankdir=TB;
+  node [shape=box fontname="Courier"];
+  "main" [style=filled fillcolor=lightblue];
+  "VALIDATE" [style=filled fillcolor=lightblue];
+  "PROCESS" [style=filled fillcolor=lightblue];
+  "CONVERT" [style=filled fillcolor=lightblue];
+  "AUDIT" [style=filled fillcolor=lightblue];
+  "REPORT" [style=filled fillcolor=lightblue];
+  "ERRORS" [style=filled fillcolor=lightblue];
+  "DBREAD" [style=filled fillcolor=lightblue];
+  "FORMAT" [style=filled fillcolor=lightblue];
+  "DBWRITE" [style=filled fillcolor=lightblue];
+  "main" -> "VALIDATE";
+  "main" -> "PROCESS";
+  "main" -> "CONVERT";
+  "main" -> "AUDIT";
+  "main" -> "REPORT";
+  "main" -> "ERRORS";
+  "VALIDATE" -> "DBREAD";
+  "VALIDATE" -> "CONVERT";
+  "VALIDATE" -> "ERRORS";
+  "PROCESS" -> "FORMAT";
+  "PROCESS" -> "DBWRITE";
+  "PROCESS" -> "ERRORS";
+  "REPORT" -> "FORMAT";
+  "REPORT" -> "AUDIT";
+  "FORMAT" -> "AUDIT";
+}

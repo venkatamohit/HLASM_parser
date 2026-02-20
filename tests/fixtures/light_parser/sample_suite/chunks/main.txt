@@ -1,0 +1,57 @@
+MAINLOOP DS    0H                 Top of main loop
+*
+* Step 1 – Validate the incoming employee record
+         GO    VALIDATE            Validate data; sets ERRFLAG
+         CLI   ERRFLAG,X'FF'      Did validation detect an error?
+         BE    ERRHANDLE          Yes – handle it and skip to next
+*
+* Step 2 – Run payroll calculations for this employee
+         GO    PROCESS             Calc gross, tax, deductions, net
+         CLI   ERRFLAG,X'FF'      Did processing encounter an error?
+         BE    ERRHANDLE          Yes – handle it
+*
+* Step 3 – Convert monetary amounts to printable packed/zoned form
+         L     R15,=V(CONVERT)    Load address of CONVERT module
+         BALR  R14,R15            Link-call to CONVERT
+*
+* Step 4 – Write audit record for this transaction
+         L     R15,=V(AUDIT)      Load address of AUDIT module
+         BALR  R14,R15            Link-call to AUDIT
+*
+* Step 5 – Generate report line if reporting is active
+         TM    RPTFLAG,X'01'      Is reporting switched on?
+         BO    DORPT              Yes – generate a report line
+         B     ACCTOTL            No  – skip report generation
+DORPT    DS    0H
+         GO    REPORT              Write a report detail line
+*
+* Step 6 – Accumulate run totals
+ACCTOTL  DS    0H
+         AP    TOTGROSS,EMGROSS   Add this employee's gross pay
+         AP    TOTNPAY, EMNPAY    Add net pay
+         AP    TOTTAX,  EMTAX     Add tax
+         AP    TOTDED,  EMDED     Add deductions
+*
+* Step 7 – Read next record and loop or exit
+         GET   EMPFILE,INREC      Read next employee record
+         LTR   R15,R15
+         BZ    MAINLOOP           More records – go round again
+         B     MAINEOF            End of input
+*
+* ================================================================
+* Error handler – called via GOIF from within the loop
+* ================================================================
+ERRHANDLE DS   0H
+         MVI   RETCODE,X'08'      Mark as error run
+         L     R15,=V(ERRORS)     Link to the error handler module
+         BALR  R14,R15
+         MVI   ERRFLAG,X'00'      Reset flag and continue
+         B     ACCTOTL            Rejoin main flow after error
+*
+* ================================================================
+* End-of-file – write totals report and close files
+* ================================================================
+MAINEOF  DS    0H
+         GO    REPORT              Write summary totals report
+         CLOSE (EMPFILE,,PAYFILE,,RPTFILE)
+         B     MAINEND
