@@ -1,0 +1,48 @@
+{
+  "entry": "main",
+  "flow": {
+    "main": [
+      "VALIDATE",
+      "PROCESS",
+      "CONVERT",
+      "AUDIT",
+      "REPORT",
+      "ERRORS"
+    ],
+    "VALIDATE": [
+      "DBREAD",
+      "CONVERT",
+      "ERRORS"
+    ],
+    "PROCESS": [
+      "FORMAT",
+      "DBWRITE",
+      "ERRORS"
+    ],
+    "CONVERT": [],
+    "AUDIT": [],
+    "REPORT": [
+      "FORMAT",
+      "AUDIT"
+    ],
+    "ERRORS": [],
+    "DBREAD": [],
+    "FORMAT": [
+      "AUDIT"
+    ],
+    "DBWRITE": []
+  },
+  "chunk_line_counts": {
+    "main": 57,
+    "VALIDATE": 84,
+    "PROCESS": 97,
+    "CONVERT": 116,
+    "AUDIT": 69,
+    "REPORT": 67,
+    "ERRORS": 48,
+    "DBREAD": 56,
+    "FORMAT": 65,
+    "DBWRITE": 60
+  },
+  "missing": []
+}

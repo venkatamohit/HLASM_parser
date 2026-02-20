@@ -1,0 +1,16 @@
+flowchart TD
+  main --> VALIDATE
+  main --> PROCESS
+  main --> CONVERT
+  main --> AUDIT
+  main --> REPORT
+  main --> ERRORS
+  VALIDATE --> DBREAD
+  VALIDATE --> CONVERT
+  VALIDATE --> ERRORS
+  PROCESS --> FORMAT
+  PROCESS --> DBWRITE
+  PROCESS --> ERRORS
+  REPORT --> FORMAT
+  REPORT --> AUDIT
+  FORMAT --> AUDIT

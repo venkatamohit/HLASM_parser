@@ -1,0 +1,65 @@
+FORMAT   IN
+         STM   R14,R12,12(R13)
+         BALR  R12,0
+         USING *,R12
+         ST    R13,FMSAVE+4
+         LA    R13,FMSAVE
+*
+* ---- Gross pay -----------------------------------------------
+         MVC   FMTGRSS,FMMASK14   Load edit mask
+         ED    FMTGRSS,EMGROSS     Edit gross pay
+         TM    EMGROSS+7,X'0D'     Is it negative (packed sign D)?
+         BNO   FMGGPOS             No – skip CR notation
+         MVC   FMTGRSS+12(2),=C'CR'  Append credit notation
+FMGGPOS  DS    0H
+*
+* ---- Net pay -------------------------------------------------
+         MVC   FMTNPAY,FMMASK14
+         ED    FMTNPAY,EMNPAY
+         TM    EMNPAY+7,X'0D'
+         BNO   FMNPPOS
+         MVC   FMTNPAY+12(2),=C'CR'
+FMNPPOS  DS    0H
+*
+* ---- Total tax -----------------------------------------------
+         MVC   FMTTAX,FMMASK14
+         ED    FMTTAX,EMTAX
+         TM    EMTAX+7,X'0D'
+         BNO   FMTXPOS
+         MVC   FMTTAX+12(2),=C'CR'
+FMTXPOS  DS    0H
+*
+* ---- Total deductions ----------------------------------------
+         MVC   FMTDED,FMMASK14
+         ED    FMTDED,EMDED
+         TM    EMDED+7,X'0D'
+         BNO   FMDEDPS
+         MVC   FMTDED+12(2),=C'CR'
+FMDEDPS  DS    0H
+*
+* ---- Federal tax ---------------------------------------------
+         MVC   FMTFED,FMMASK14
+         ED    FMTFED,EMFED
+*
+* ---- State tax -----------------------------------------------
+         MVC   FMTSTATE,FMMASK14
+         ED    FMTSTATE,EMSTATE
+*
+* ---- Format today's date and time for the report header ------
+         TIME  BIN                 Get current time/date (R0=time, R1=date)
+         ST    R0,FMTIMEW          Store time word
+         ST    R1,FMDATEW          Store date word
+*        Convert Julian date (R1) to Gregorian MMDDYYYY
+         CVD   R1,FMDBLDW          Convert to packed decimal
+         UNPK  FMTDATE(7),FMDBLDW+4(4)
+         OI    FMTDATE+6,X'F0'     Fix zone of last byte
+*
+* ---- Audit this formatting operation ------------------------
+         GO    AUDIT               Record that FORMAT was called
+*
+* ---- Exit ---------------------------------------------------
+FMEXIT   DS    0H
+         L     R13,FMSAVE+4
+         LM    R14,R12,12(R13)
+         BR    R14
+         OUT
