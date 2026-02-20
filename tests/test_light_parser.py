@@ -1074,3 +1074,71 @@ class TestMacroCatalogAndTagging:
         assert '"NUMCHK" [style=filled fillcolor=khaki shape=component];' in dot
         mmd = lp.to_mermaid()
         assert "class NUMCHK macro;" in mmd
+
+
+class TestMacroHeaderAndEquAliasResolution:
+    def test_macro_name_uses_opcode_not_symbolic_label(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 ALLOW FILEA,FILEB,TCR051
+                 BR    14
+        MACRO
+        &LABEL   ALLOW &FILE1,&FILE2,&ERR=
+                 GO    &ERR
+                 MEND
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        macros = json.loads((out / "macros.json").read_text())
+        names = [m["name"] for m in macros["macros"]]
+        assert "ALLOW" in names
+        assert "&LABEL" not in names
+        assert (out / "ALLOW__macro.txt").exists()
+        assert not (out / "&LABEL__macro.txt").exists()
+
+    def test_l_v_target_resolves_via_equ_alias(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VALPTR)
+                 BR    14
+        VALPTR   EQU   TCR051
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert "TCR051" in lp.flow["main"]
+        assert "TCR051" in lp.chunks
+        assert "VALPTR" not in lp.missing
+
+    def test_equ_alias_chain_resolved(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VALA)
+                 BR    14
+        VALA     EQU   VALB
+        VALB     EQU   TCR051
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert "TCR051" in lp.flow["main"]
+        assert "TCR051" in lp.chunks
