@@ -830,19 +830,24 @@ class TestEqStarAndVtranSupport:
         assert "EQU" in block[0]
         assert "VTRANTAB" in block[0]
 
-    def test_equ_star_block_ends_before_next_label(self, tmp_path):
+    def test_equ_star_block_ends_at_eject(self, tmp_path):
+        """EQU * table ends at EJECT; labeled statements inside are included."""
         src = textwrap.dedent("""\
         VTRANTAB EQU   *
                  VTRAN 05,0,TCR050,1001
-        NEXTLBL  DS    0H
+        INRTBL   DS    0H
                  BR    14
+                 EJECT
+        AFTEREJ  DS    0H
         """)
         driver = tmp_path / "prog.asm"
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
         block = lp._find_subroutine("VTRANTAB")
         assert block is not None
-        assert not any("NEXTLBL" in ln for ln in block)
+        assert any("INRTBL" in ln for ln in block)           # labeled line inside → included
+        assert any("EJECT" in ln.upper() for ln in block)   # EJECT is the boundary
+        assert not any("AFTEREJ" in ln for ln in block)      # content after EJECT → excluded
 
     def test_equ_star_block_contains_vtran_entries(self, tmp_path):
         src = textwrap.dedent("""\

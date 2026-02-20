@@ -726,12 +726,9 @@ class LightParser:
                     block = [line]
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
-                        # Stop before the next labeled statement (non-blank col-1
-                        # that is not a comment).  This is the natural end of
-                        # an EQU * data table.
-                        if next_line and next_line[0] not in (" ", "\t", "*"):
-                            break
                         block.append(next_line)
+                        # EJECT is the natural page/section separator in HLASM
+                        # source and marks the end of a data table.
                         if _EJECT_RE.match(next_line):
                             break
                     equ_candidate = block
