@@ -1019,3 +1019,58 @@ class TestEqStarAndVtranSupport:
         mmd = lp.to_mermaid()
         assert "main --> VTRANTAB" in mmd
         assert "VTRANTAB --> TCR050" in mmd
+
+
+class TestMacroCatalogAndTagging:
+    def test_macro_catalog_and_macro_chunk_written(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 NUMCHK FIELD,8,TCR051
+                 BR    14
+        MACRO
+        NUMCHK &OPR1,&LEN,&ERROR=
+                 GO    &ERROR
+                 MEND
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert (out / "macros.json").exists()
+        assert (out / "NUMCHK__macro.txt").exists()
+        macros = json.loads((out / "macros.json").read_text())
+        names = [m["name"] for m in macros["macros"]]
+        assert "NUMCHK" in names
+
+    def test_macro_node_tagged_in_flow_and_graphs(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 NUMCHK FIELD,8,TCR051
+                 BR    14
+        MACRO
+        NUMCHK &OPR1,&LEN,&ERROR=
+                 GO    &ERROR
+                 MEND
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert lp.flow["main"] == ["NUMCHK"]
+        assert "TCR051" in lp.flow["NUMCHK"]
+        assert lp.to_json()["node_tags"]["NUMCHK"] == ["macro"]
+
+        dot = lp.to_dot()
+        assert '"NUMCHK" [style=filled fillcolor=khaki shape=component];' in dot
+        mmd = lp.to_mermaid()
+        assert "class NUMCHK macro;" in mmd
