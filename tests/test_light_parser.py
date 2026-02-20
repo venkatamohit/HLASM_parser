@@ -210,24 +210,24 @@ class TestLightParserRun:
         return parser
 
     def test_main_txt_created(self, lp, tmp_path):
-        assert (tmp_path / "main.txt").exists()
+        assert (tmp_path / "main_sub.txt").exists()
 
     def test_main_chunk_stored(self, lp):
         assert "main" in lp.chunks
         assert len(lp.chunks["main"]) == MAIN_END - MAIN_START + 1
 
     def test_external_suba_resolved(self, lp, tmp_path):
-        assert (tmp_path / "SUBA.txt").exists()
+        assert (tmp_path / "SUBA_sub.txt").exists()
 
     def test_external_subb_resolved(self, lp, tmp_path):
-        assert (tmp_path / "SUBB.txt").exists()
+        assert (tmp_path / "SUBB_sub.txt").exists()
 
     def test_inline_inlsub_resolved(self, lp, tmp_path):
-        assert (tmp_path / "INLSUB.txt").exists()
+        assert (tmp_path / "INLSUB_sub.txt").exists()
 
     def test_nested_subc_resolved(self, lp, tmp_path):
         """SUBC is called by SUBA – must be resolved transitively."""
-        assert (tmp_path / "SUBC.txt").exists()
+        assert (tmp_path / "SUBC_sub.txt").exists()
 
     def test_flow_has_main_entry(self, lp):
         assert "main" in lp.flow
@@ -284,7 +284,7 @@ class TestLightParserRun:
         assert "BETA" in lp.chunks
 
     def test_txt_files_contain_source_lines(self, lp, tmp_path):
-        content = (tmp_path / "SUBA.txt").read_text()
+        content = (tmp_path / "SUBA_sub.txt").read_text()
         assert "SUBA" in content
         assert "IN" in content
 
@@ -450,10 +450,10 @@ class TestLightParserCli:
             "--end-line", str(MAIN_END),
             "-s", str(out),
         ])
-        assert (out / "main.txt").exists()
-        assert (out / "SUBA.txt").exists()
-        assert (out / "flow.json").exists()
-        assert (out / "cfg.dot").exists()
+        assert (out / "chunks" / "main_sub.txt").exists()
+        assert (out / "chunks" / "SUBA_sub.txt").exists()
+        assert (out / "cfg" / "flow.json").exists()
+        assert (out / "cfg" / "cfg.dot").exists()
 
     def test_mermaid_cfg_format(self, tmp_path):
         from hlasm_parser.cli import main
@@ -467,8 +467,8 @@ class TestLightParserCli:
             "-s", str(out),
             "--cfg-format", "mermaid",
         ])
-        assert (out / "cfg.mmd").exists()
-        content = (out / "cfg.mmd").read_text()
+        assert (out / "cfg" / "cfg.mmd").exists()
+        content = (out / "cfg" / "cfg.mmd").read_text()
         assert "flowchart TD" in content
 
 
@@ -548,7 +548,7 @@ class TestLinkCallDetection:
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
         lp.run(1, 4)
-        assert (tmp_path / "out" / "SUBD.txt").exists()
+        assert (tmp_path / "out" / "SUBD_sub.txt").exists()
 
     def test_l_target_in_flow(self, tmp_path):
         src = textwrap.dedent("""\
@@ -672,7 +672,7 @@ class TestLinkCallDetection:
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
         lp.run(1, 3)
-        assert (tmp_path / "out" / "SUBD.txt").exists()
+        assert (tmp_path / "out" / "SUBD_sub.txt").exists()
 
     def test_v_constant_in_flow(self, tmp_path):
         src = "PROG CSECT\n         L     R15,=V(SUBD)\n         BR    14\n"
@@ -976,7 +976,7 @@ class TestEqStarAndVtranSupport:
         driver.write_text(driver_src)
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
         lp.run(1, 3)
-        assert (tmp_path / "out" / "VTRANTAB.txt").exists()
+        assert (tmp_path / "out" / "VTRANTAB_sub.txt").exists()
 
     def test_vtran_table_in_dot_output(self, tmp_path):
         driver_src = textwrap.dedent("""\
@@ -1042,7 +1042,7 @@ class TestMacroCatalogAndTagging:
         lp.run(1, 3)
 
         assert (out / "macros.json").exists()
-        assert (out / "NUMCHK__macro.txt").exists()
+        assert (out / "NUMCHK_macro.txt").exists()
         macros = json.loads((out / "macros.json").read_text())
         names = [m["name"] for m in macros["macros"]]
         assert "NUMCHK" in names
@@ -1100,8 +1100,8 @@ class TestMacroHeaderAndEquAliasResolution:
         names = [m["name"] for m in macros["macros"]]
         assert "ALLOW" in names
         assert "&LABEL" not in names
-        assert (out / "ALLOW__macro.txt").exists()
-        assert not (out / "&LABEL__macro.txt").exists()
+        assert (out / "ALLOW_macro.txt").exists()
+        assert not (out / "&LABEL_macro.txt").exists()
 
     def test_l_v_target_resolves_via_equ_alias(self, tmp_path):
         src = textwrap.dedent("""\
@@ -1142,3 +1142,52 @@ class TestMacroHeaderAndEquAliasResolution:
 
         assert "TCR051" in lp.flow["main"]
         assert "TCR051" in lp.chunks
+
+    def test_inline_macro_header_form_macro_dotstar_name(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 OPEN FILE1
+                 BR    14
+        MACRO .* OPEN
+                 GO    TCR051
+                 MEND
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        macros = json.loads((out / "macros.json").read_text())
+        names = [m["name"] for m in macros["macros"]]
+        assert "OPEN" in names
+        assert (out / "OPEN_macro.txt").exists()
+
+    def test_a_constant_equ_block_extracts_and_resolves_nested_routine(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R1,=A(TESTMOD)
+                 BR    14
+        TESTMOD  EQU   *
+                 MACRO 12,0,ROUTINE1,1223
+                 MACRO 12,0,ROUTINE1,1223
+        NEXTLBL  DS    0H
+        ROUTINE1 IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert "TESTMOD" in lp.flow["main"]
+        assert "ROUTINE1" in lp.flow.get("TESTMOD", [])
+        assert lp.flow["main"].count("TESTMOD") == 1
+        assert lp.flow["TESTMOD"].count("ROUTINE1") == 1
+        assert "TESTMOD" in lp.chunks
+        assert "ROUTINE1" in lp.chunks
