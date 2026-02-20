@@ -8,8 +8,12 @@ Flow
      * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
      * ``L Rx,=V(name)``  V-type address constant (primary Link form).
      * ``L <name>``  plain Link where the operand is a bare identifier.
+     * ``VTRAN seq,type,<name>,id``  translation-table entry (3rd operand).
 3. For each *name*, search the driver + every file under *deps_dir* for a
    block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
+   If no IN/OUT block is found, fall back to a ``<name>  EQU  *`` table
+   (common for translation dispatch tables such as VTRANTAB).  The EQU *
+   block extends until the next labeled statement in the source.
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
 5. Expose the parent→children flow map via :meth:`to_json`, :meth:`to_dot`,
    and :meth:`to_mermaid`.
@@ -46,11 +50,24 @@ _LINK_RE = re.compile(
 # Register aliases R0–R15 that would otherwise look like plain Link targets.
 _REGISTER_RE = re.compile(r"^R(?:1[0-5]|[0-9])$", re.IGNORECASE)
 
+# VTRAN seq,type,SUBNAME,id – translation-table entry; 3rd operand is the
+# subroutine name dispatched at run time.  Accepts an optional leading label.
+#   VTRANTAB VTRAN 05,0,TCR050,1001
+#            VTRAN 05,0,TCR051,1002
+_VTRAN_RE = re.compile(
+    r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)VTRAN\s+[^,]+,[^,]+,(\w+)",
+    re.IGNORECASE,
+)
+
 # Matches OUT in opcode position (with optional leading label or spaces)
 _OUT_RE = re.compile(r"^\s*(?:\w+\s+)?OUT\b", re.IGNORECASE)
 
 # Matches the start of *any* IN block (used as a fallback stop condition)
 _ANY_IN_RE = re.compile(r"^\w+\s+IN\b", re.IGNORECASE)
+
+# Matches ``NAME  EQU  *`` – translation/dispatch table anchor.
+# Used as a fallback chunk boundary when no IN/OUT block exists for a name.
+_EQU_STAR_RE_TEMPLATE = r"^{name}\s+EQU\s+\*"
 
 
 def _in_pattern(name: str) -> re.Pattern[str]:
@@ -180,14 +197,16 @@ class LightParser:
 
     @staticmethod
     def _find_go_targets(lines: list[str]) -> list[str]:
-        """Return subroutine names called via GO or L in *lines* (order preserved).
+        """Return subroutine names called via GO, L, or VTRAN in *lines*.
 
         Handles:
         * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
-        * ``L <name>``  where the operand is a plain identifier (Link call),
-          distinguished from the Load-register opcode by the absence of a
-          comma or parenthesis in the operand field.  Register aliases R0–R15
-          are excluded to avoid false positives.
+        * ``L Rx,=V(<name>)``  V-type address constant Link (primary form).
+        * ``L <name>``  plain Link where the operand is a bare identifier,
+          distinguished from Load-register by the absence of a comma or
+          parenthesis.  Register aliases R0–R15 are excluded.
+        * ``VTRAN seq,type,<name>,id``  translation-table dispatch entry;
+          the 3rd comma-separated operand is the target subroutine name.
         """
         seen: set[str] = set()
         targets: list[str] = []
@@ -214,6 +233,11 @@ class LightParser:
             m = _LINK_RE.match(line)
             if m and not _REGISTER_RE.match(m.group(1)):
                 _add(m.group(1))
+            # VTRAN seq,type,SUBNAME,id – translation-table dispatch entry;
+            # the 3rd comma-separated operand is the subroutine name.
+            m = _VTRAN_RE.match(line)
+            if m:
+                _add(m.group(1))
 
         return targets
 
@@ -228,30 +252,51 @@ class LightParser:
     def _find_subroutine(self, name: str) -> list[str] | None:
         """Search all source files for a ``<name>  IN … OUT`` block.
 
-        Returns the lines of the block (inclusive of the IN line and the OUT
-        line), or ``None`` if *name* is not found anywhere.
+        If no IN/OUT block is found, falls back to a ``<name>  EQU  *``
+        table block (common for translation/dispatch tables).  The EQU *
+        block ends immediately before the next labeled statement (a line
+        whose first character is not a space, tab, or ``*``).
+
+        Returns the lines of the block, or ``None`` if *name* is not found.
         """
         in_re = _in_pattern(name)
+        equ_re = re.compile(
+            _EQU_STAR_RE_TEMPLATE.format(name=re.escape(name)), re.IGNORECASE
+        )
+        equ_candidate: list[str] | None = None   # best EQU * match seen so far
+
         for f in self._search_files():
             try:
                 all_lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
             except OSError:
                 continue
             for i, line in enumerate(all_lines):
-                if not in_re.match(line):
-                    continue
-                block = [line]
-                for j in range(i + 1, len(all_lines)):
-                    next_line = all_lines[j]
-                    block.append(next_line)
-                    if _OUT_RE.match(next_line):
-                        return block          # normal end: OUT found
-                    # Fallback: stop before the next IN block starts
-                    if _ANY_IN_RE.match(next_line):
-                        block.pop()           # don't include the next IN header
-                        return block
-                return block                  # EOF without OUT or next IN
-        return None
+                # Primary: IN / OUT block
+                if in_re.match(line):
+                    block = [line]
+                    for j in range(i + 1, len(all_lines)):
+                        next_line = all_lines[j]
+                        block.append(next_line)
+                        if _OUT_RE.match(next_line):
+                            return block          # normal end: OUT found
+                        # Fallback: stop before the next IN block starts
+                        if _ANY_IN_RE.match(next_line):
+                            block.pop()           # don't include the next IN header
+                            return block
+                    return block                  # EOF without OUT or next IN
+
+                # Secondary: EQU * table (kept as candidate; IN/OUT wins)
+                if equ_candidate is None and equ_re.match(line):
+                    block = [line]
+                    for j in range(i + 1, len(all_lines)):
+                        next_line = all_lines[j]
+                        # A non-blank label in column 1 starts the next statement
+                        if next_line and next_line[0] not in (" ", "\t", "*"):
+                            break
+                        block.append(next_line)
+                    equ_candidate = block
+
+        return equ_candidate  # None if neither form was found
 
     def _save_chunk(self, name: str, lines: list[str]) -> None:
         self.chunks[name] = lines

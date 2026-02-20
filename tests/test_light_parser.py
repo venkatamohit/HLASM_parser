@@ -723,3 +723,299 @@ class TestLinkCallDetection:
         lp.run(1, 3)
         mmd = lp.to_mermaid()
         assert "main --> SUBD" in mmd
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EQU * table and VTRAN dispatch-table support
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestEqStarAndVtranSupport:
+    """Tests for EQU * table detection and VTRAN dispatch-entry extraction.
+
+    Pattern being tested
+    --------------------
+    Main code:
+        L     R15,=V(VTRANTAB)    Load address of translation table
+        BALR  R14,R15
+
+    Table definition (EQU * anchor, no IN/OUT markers):
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+                 VTRAN 05,0,TCR051,1002
+        NEXTLBL  DS    0H         ← table ends here (labeled statement)
+
+    Subroutines referenced in the table (normal IN/OUT blocks):
+        TCR050   IN
+                 ...
+                 OUT
+    """
+
+    # ── _find_go_targets: VTRAN unit tests ───────────────────────────────────
+
+    def test_vtran_target_extracted(self):
+        lines = ["         VTRAN 05,0,TCR050,1001"]
+        assert "TCR050" in LightParser._find_go_targets(lines)
+
+    def test_vtran_with_label_in_col1(self):
+        lines = ["VTRLBL   VTRAN 05,0,TCR051,1002"]
+        assert "TCR051" in LightParser._find_go_targets(lines)
+
+    def test_vtran_case_insensitive(self):
+        lines = ["         vtran 05,0,tcr052,1003"]
+        assert "TCR052" in LightParser._find_go_targets(lines)
+
+    def test_vtran_name_uppercased(self):
+        lines = ["         VTRAN 05,0,tcr050,1001"]
+        targets = LightParser._find_go_targets(lines)
+        assert "TCR050" in targets
+        assert "tcr050" not in targets
+
+    def test_vtran_multiple_entries_order_preserved(self):
+        lines = [
+            "         VTRAN 05,0,TCR050,1001",
+            "         VTRAN 05,0,TCR051,1002",
+            "         VTRAN 05,0,TCR052,1003",
+        ]
+        assert LightParser._find_go_targets(lines) == ["TCR050", "TCR051", "TCR052"]
+
+    def test_vtran_deduplicated(self):
+        lines = [
+            "         VTRAN 05,0,TCR050,1001",
+            "         VTRAN 05,0,TCR050,1002",
+        ]
+        assert LightParser._find_go_targets(lines).count("TCR050") == 1
+
+    def test_vtran_mixed_with_go_and_l(self):
+        lines = [
+            "         GO    SUBA",
+            "         VTRAN 05,0,TCR050,1001",
+            "         L     R15,=V(EXTSUB)",
+        ]
+        targets = LightParser._find_go_targets(lines)
+        assert "SUBA" in targets
+        assert "TCR050" in targets
+        assert "EXTSUB" in targets
+
+    def test_vtran_comment_line_skipped(self):
+        lines = ["* VTRAN 05,0,SKIPME,0000"]
+        assert "SKIPME" not in LightParser._find_go_targets(lines)
+
+    # ── _find_subroutine: EQU * detection ────────────────────────────────────
+
+    def test_equ_star_block_found(self, tmp_path):
+        src = textwrap.dedent("""\
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+                 VTRAN 05,0,TCR051,1002
+        NEXTLBL  DS    0H
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("VTRANTAB")
+        assert block is not None
+
+    def test_equ_star_block_first_line_has_equ(self, tmp_path):
+        src = textwrap.dedent("""\
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("VTRANTAB")
+        assert block is not None
+        assert "EQU" in block[0]
+        assert "VTRANTAB" in block[0]
+
+    def test_equ_star_block_ends_before_next_label(self, tmp_path):
+        src = textwrap.dedent("""\
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+                 BR    14
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("VTRANTAB")
+        assert block is not None
+        assert not any("NEXTLBL" in ln for ln in block)
+
+    def test_equ_star_block_contains_vtran_entries(self, tmp_path):
+        src = textwrap.dedent("""\
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+                 VTRAN 05,0,TCR051,1002
+        NEXTLBL  DS    0H
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("VTRANTAB")
+        assert block is not None
+        assert any("TCR050" in ln for ln in block)
+        assert any("TCR051" in ln for ln in block)
+
+    def test_equ_star_missing_returns_none(self, tmp_path):
+        src = "VTRANTAB EQU   *\n         VTRAN 05,0,TCR050,1001\nNEXTLBL  DS    0H\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        assert lp._find_subroutine("NOSUCH") is None
+
+    def test_in_out_preferred_over_equ_star(self, tmp_path):
+        """When both NAME IN and NAME EQU * exist, IN/OUT wins."""
+        src = textwrap.dedent("""\
+        MYSUB    IN
+                 BR    14
+                 OUT
+        MYSUB    EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("MYSUB")
+        assert block is not None
+        assert any("IN" in ln for ln in block)
+        assert any("OUT" in ln for ln in block)
+
+    def test_equ_star_block_eof_without_next_label(self, tmp_path):
+        """EQU * table at EOF (no following labeled statement) is captured."""
+        src = "VTRANTAB EQU   *\n         VTRAN 05,0,TCR050,1001\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        block = lp._find_subroutine("VTRANTAB")
+        assert block is not None
+        assert any("TCR050" in ln for ln in block)
+
+    # ── Integration: end-to-end flow ─────────────────────────────────────────
+
+    def test_v_constant_to_equ_star_table_resolved(self, tmp_path):
+        """L R15,=V(VTRANTAB) → VTRANTAB EQU * block captured as chunk."""
+        driver_src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BALR  R14,R15
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        """)
+        tcr050_src = "TCR050   IN\n         MVI   0(13),X'00'\n         BR    14\n         OUT\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(driver_src)
+        (tmp_path / "TCR050.asm").write_text(tcr050_src)
+        lp = LightParser(driver_path=driver, deps_dir=tmp_path, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert "VTRANTAB" in lp.chunks
+        assert "VTRANTAB" in lp.flow["main"]
+
+    def test_vtran_subs_resolved_recursively(self, tmp_path):
+        """VTRAN entries inside the EQU * table are BFS-resolved."""
+        driver_src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BALR  R14,R15
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+                 VTRAN 05,0,TCR051,1002
+        NEXTLBL  DS    0H
+        """)
+        tcr050_src = "TCR050   IN\n         MVI   0(13),X'00'\n         BR    14\n         OUT\n"
+        tcr051_src = "TCR051   IN\n         MVI   0(13),X'01'\n         BR    14\n         OUT\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(driver_src)
+        (tmp_path / "TCR050.asm").write_text(tcr050_src)
+        (tmp_path / "TCR051.asm").write_text(tcr051_src)
+        lp = LightParser(driver_path=driver, deps_dir=tmp_path, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert "TCR050" in lp.chunks
+        assert "TCR051" in lp.chunks
+        assert "TCR050" in lp.flow.get("VTRANTAB", [])
+        assert "TCR051" in lp.flow.get("VTRANTAB", [])
+        assert lp.missing == []
+
+    def test_vtran_sub_in_driver_file_resolved(self, tmp_path):
+        """TCR050 IN defined in the same driver file is found directly."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BALR  R14,R15
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert "TCR050" in lp.chunks
+        assert lp.missing == []
+
+    def test_vtrantab_txt_file_created(self, tmp_path):
+        driver_src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(driver_src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert (tmp_path / "out" / "VTRANTAB.txt").exists()
+
+    def test_vtran_table_in_dot_output(self, tmp_path):
+        driver_src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(driver_src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        dot = lp.to_dot()
+        assert '"VTRANTAB"' in dot
+        assert '"TCR050"' in dot
+        assert '"main" -> "VTRANTAB"' in dot
+        assert '"VTRANTAB" -> "TCR050"' in dot
+
+    def test_vtran_table_in_mermaid_output(self, tmp_path):
+        driver_src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTRANTAB)
+                 BR    14
+        VTRANTAB EQU   *
+                 VTRAN 05,0,TCR050,1001
+        NEXTLBL  DS    0H
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(driver_src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        mmd = lp.to_mermaid()
+        assert "main --> VTRANTAB" in mmd
+        assert "VTRANTAB --> TCR050" in mmd
