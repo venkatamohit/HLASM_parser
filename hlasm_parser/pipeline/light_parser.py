@@ -9,11 +9,14 @@ Flow
      * ``L Rx,=V(name)``  V-type address constant (primary Link form).
      * ``L <name>``  plain Link where the operand is a bare identifier.
      * Macro invocations resolved from discovered ``MACRO ... MEND`` blocks.
-3. For each *name*, search the driver + every file under *deps_dir* for a
-   block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
-   If no IN/OUT block is found, fall back to a ``<name>  EQU  *`` table
-   (common for dispatch/translation anchors).  The EQU *
-   block extends until the next labeled statement in the source.
+3. For each *name*, search the driver + every file under *deps_dir* using a
+   cascade of four strategies:
+     a. ``<name>  IN`` … ``OUT`` block (or the next ``IN`` marker).
+     b. ``<name>  EQU  *`` table (dispatch/translation anchor, until EJECT).
+     c. ``<name>  CSECT`` block (control-section definition, until DS 0F/EJECT/END).
+     d. Copybook file in *deps_dir* whose stem matches *name* (from ``COPY``
+        directive or as a resolution of any unresolved target).
+   ``COPY <name>`` statements are also detected as direct call edges.
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
 5. Expose the parent→children flow map via :meth:`to_json`, :meth:`to_dot`,
    and :meth:`to_mermaid`.
@@ -62,6 +65,16 @@ _EQU_STAR_RE_TEMPLATE = r"^{name}\s+EQU\s+\*"
 _MACRO_START_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MACRO\b", re.IGNORECASE)
 _MEND_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MEND\b", re.IGNORECASE)
 _EJECT_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?EJECT\b", re.IGNORECASE)
+
+# DS 0F / 0H / 0D / 0B — common HLASM alignment / section-boundary directive.
+_DS_ALIGN_RE = re.compile(r"^\s+DS\s+0[FHDB]\b", re.IGNORECASE)
+
+# END statement in opcode position (leading whitespace required to avoid
+# matching a label that starts with "END…").
+_END_RE = re.compile(r"^\s+END\b", re.IGNORECASE)
+
+# CSECT definition: <name> CSECT
+_CSECT_RE = re.compile(r"^\w[\w@#$]{0,7}\s+CSECT\b", re.IGNORECASE)
 
 # Generic dispatch-style macro pattern with a target as the 3rd operand.
 # Example: FOO 05,0,TCR051,1002  ->  TCR051
@@ -164,26 +177,27 @@ class LightParser:
 
         while queue:
             parent, lines = queue.pop(0)
-            for macro_name, macro_targets in self._find_macro_calls(lines, self.macros):
-                if macro_name not in self.flow[parent]:
-                    self.flow[parent].append(macro_name)
-                self.flow.setdefault(macro_name, [])
-                self.node_tags[macro_name] = ["macro"]
-                self.chunk_kinds[macro_name] = "macro"
-                if macro_name not in visited:
-                    visited.add(macro_name)
-                    queue.append((macro_name, self.macros[macro_name].lines))
-                for target in macro_targets:
-                    if target not in self.flow[macro_name]:
-                        self.flow[macro_name].append(target)
+            # Scan all calls in source-line order (macros and GO/L interleaved).
+            for call in self._find_calls_ordered(lines, self.macros, parent):
+                if call["kind"] == "macro":
+                    macro_name = call["name"]
+                    if macro_name not in self.flow[parent]:
+                        self.flow[parent].append(macro_name)
+                    self.flow.setdefault(macro_name, [])
+                    self.node_tags[macro_name] = ["macro"]
+                    self.chunk_kinds[macro_name] = "macro"
+                    if macro_name not in visited:
+                        visited.add(macro_name)
+                        queue.append((macro_name, self.macros[macro_name].lines))
+                    for target in call["targets"]:
+                        if target not in self.flow[macro_name]:
+                            self.flow[macro_name].append(target)
+                        self._resolve_target(target, visited, queue)
+                else:  # "direct" — GO / L target
+                    target = call["name"]
+                    if target not in self.flow[parent]:
+                        self.flow[parent].append(target)
                     self._resolve_target(target, visited, queue)
-
-            for target in self._find_go_targets(
-                lines, self.macros, include_known_macros=False
-            ):
-                if target not in self.flow[parent]:
-                    self.flow[parent].append(target)
-                self._resolve_target(target, visited, queue)
 
         self._write_macro_catalog()
 
@@ -214,12 +228,19 @@ class LightParser:
             '  node [shape=box fontname="Courier"];',
         ]
         for name in self.flow:
+            kind = self.chunk_kinds.get(name, "sub")
             if name in missing_set:
                 colour = "red"
                 shape = "box"
-            elif name in self.macro_nodes:
+            elif kind == "macro":
                 colour = "khaki"
                 shape = "component"
+            elif kind == "copybook":
+                colour = "lightgreen"
+                shape = "note"
+            elif kind == "csect":
+                colour = "lightyellow"
+                shape = "box"
             else:
                 colour = "lightblue"
                 shape = "box"
@@ -241,7 +262,97 @@ class LightParser:
             for name in sorted(self.macro_nodes):
                 if name in self.flow:
                     lines.append(f"  class {name} macro;")
+        copybook_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "copybook" and n in self.flow
+        )
+        if copybook_nodes:
+            lines.append("  classDef copybook fill:#90ee90,stroke:#006400,stroke-width:1px;")
+            for name in copybook_nodes:
+                lines.append(f"  class {name} copybook;")
+        csect_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "csect" and n in self.flow
+        )
+        if csect_nodes:
+            lines.append("  classDef csect fill:#fffacd,stroke:#a0a000,stroke-width:1px;")
+            for name in csect_nodes:
+                lines.append(f"  class {name} csect;")
         return "\n".join(lines)
+
+    def to_nested_flow(self) -> dict:
+        """Return a nested call-tree dict for documentation generation.
+
+        Intended use
+        ------------
+        A documentation generator (e.g. LLM-based) can read this single file
+        to understand the *full* call context of every subroutine without
+        having to open and cross-reference individual chunk files.
+
+        Schema
+        ------
+        ``chunks`` (flat dict, keyed by name):
+            kind         – ``"sub"`` | ``"macro"``
+            tags         – list of string tags (e.g. ``["entry"]``, ``["macro"]``)
+            line_count   – number of source lines in the chunk
+            source_lines – raw source lines (list of str)
+
+        ``tree`` (recursive node):
+            name         – chunk name
+            kind / tags  – same as chunks dict entry
+            source_lines – raw source lines (absent on ref-stub nodes)
+            calls        – ordered list of child nodes **in source call order**
+            seq          – 1-indexed call-sequence position within the parent
+                           (``1`` = first call encountered in parent's source)
+            ref          – ``True`` when this node was already fully expanded
+                           higher up in the tree (avoids duplication and
+                           infinite recursion on shared/cyclic callees)
+
+        ``missing`` – names that could not be resolved in any source file.
+        """
+        # ── flat catalogue ────────────────────────────────────────────────
+        chunks_dict: dict[str, dict] = {}
+        for name, lines in self.chunks.items():
+            chunks_dict[name] = {
+                "kind": self.chunk_kinds.get(name, "sub"),
+                "tags": self.node_tags.get(name, []),
+                "line_count": len(lines),
+                "source_lines": lines,
+            }
+
+        # ── recursive tree (DFS; each node fully expanded once) ───────────
+        expanded: set[str] = set()
+
+        def build_node(name: str) -> dict:
+            if name in expanded:
+                # Already expanded higher up – return a lightweight ref stub.
+                return {"name": name, "ref": True}
+            expanded.add(name)
+            info = chunks_dict.get(name, {})
+            calls = []
+            for seq_num, child in enumerate(self.flow.get(name, []), start=1):
+                child_node = build_node(child)
+                # seq marks the 1-indexed call order within this block so
+                # documentation generators can reconstruct "what is called first".
+                child_node["seq"] = seq_num
+                calls.append(child_node)
+            return {
+                "name": name,
+                "kind": info.get("kind", "sub"),
+                "tags": info.get("tags", []),
+                "source_lines": info.get("source_lines", []),
+                "calls": calls,
+            }
+
+        return {
+            "format": "nested_flow_v1",
+            "entry": "main",
+            "chunks": chunks_dict,
+            "tree": build_node("main"),
+            "missing": self.missing,
+        }
+
+    def to_nested_flow_str(self) -> str:
+        """Return :meth:`to_nested_flow` serialised as an indented JSON string."""
+        return json.dumps(self.to_nested_flow(), indent=2)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -333,8 +444,12 @@ class LightParser:
         for line in lines:
             if line.startswith("*"):
                 continue
-            _, opcode, operand_field = LightParser._split_statement(line)
+            label, opcode, operand_field = LightParser._split_statement(line)
             if not opcode:
+                continue
+            # Skip macro prototype/header lines (label is a symbolic &-parameter).
+            # These live inside the MACRO…MEND block itself and are not call sites.
+            if label.startswith("&"):
                 continue
             op_u = opcode.upper()
             if op_u not in macro_names:
@@ -349,6 +464,98 @@ class LightParser:
             seen.add(key)
             out.append((op_u, targets))
         return out
+
+    @staticmethod
+    def _find_calls_ordered(
+        lines: list[str],
+        macro_catalog: dict[str, MacroDefinition],
+        parent_name: str = "",
+    ) -> list[dict]:
+        """Return all call events for *lines* in source-line order.
+
+        Each event is a dict with:
+          ``kind``    – ``"macro"`` or ``"direct"``
+          ``name``    – macro or target name (upper-cased)
+          ``targets`` – list of callee names (macro events only)
+
+        This is the single-pass replacement for calling :meth:`_find_macro_calls`
+        and :meth:`_find_go_targets` separately so that the resulting
+        :attr:`flow` list preserves the actual call sequence from the source.
+        """
+        macro_names = set(macro_catalog.keys())
+        seen_macro_keys: set[tuple[str, tuple[str, ...]]] = set()
+        seen_direct: set[str] = set()
+        result: list[dict] = []
+
+        def _emit_direct(name: str) -> None:
+            n = name.upper()
+            if n not in seen_direct:
+                seen_direct.add(n)
+                result.append({"kind": "direct", "name": n})
+
+        for line in lines:
+            if line.startswith("*"):
+                continue
+
+            # GO / GOIF / GOIFNOT — direct target
+            m = _GO_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # L Rx,=V(NAME) / L Rx,=A(NAME) — direct target
+            m = _V_LINK_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # Plain L <name> — direct target (no register, no comma)
+            m = _LINK_RE.match(line)
+            if m and not _REGISTER_RE.match(m.group(1)):
+                _emit_direct(m.group(1))
+                continue
+
+            # Parse statement for opcode-based call detection
+            label, opcode, operand_field = LightParser._split_statement(line)
+            if not opcode:
+                continue
+            # Skip macro prototype/header lines inside MACRO…MEND blocks.
+            if label.startswith("&"):
+                continue
+
+            op_u = opcode.upper()
+            operands = LightParser._split_operands(operand_field)
+
+            # Known macro invocation (never self-referencing)
+            if op_u in macro_names and op_u != parent_name.upper():
+                targets = LightParser._targets_from_known_macro_call(
+                    macro_catalog[op_u], operands
+                )
+                key = (op_u, tuple(targets))
+                if key not in seen_macro_keys:
+                    seen_macro_keys.add(key)
+                    result.append({"kind": "macro", "name": op_u, "targets": targets})
+                continue
+
+            # COPY directive — include the named copybook as a chunk in the flow.
+            # Pattern: (spaces) COPY  BOOKNAME
+            if op_u == "COPY" and operands:
+                cb = operands[0].strip().upper()
+                if cb and re.match(r"^[A-Z@#$][A-Z0-9@#$]{0,11}$", cb):
+                    _emit_direct(cb)
+                continue
+
+            # Generic dispatch-style table entry (num,num,symbol,num)
+            for t in LightParser._targets_from_dispatch_style_macro(operands):
+                _emit_direct(t)
+
+            # EQU alias line: NAME EQU TARGET  — follow TARGET in BFS
+            if op_u == "EQU" and operands:
+                rhs = operands[0].strip()
+                if rhs != "*" and LightParser._looks_symbolic(rhs):
+                    _emit_direct(rhs)
+
+        return result
 
     @staticmethod
     def _split_statement(line: str) -> tuple[str, str, str]:
@@ -719,7 +926,8 @@ class LightParser:
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
                         block.append(next_line)
-                        # User-requested boundary: capture EQU block until first EJECT.
+                        # EJECT is the natural page/section separator in HLASM
+                        # source and marks the end of a data table.
                         if _EJECT_RE.match(next_line):
                             break
                     equ_candidate = block
@@ -740,14 +948,92 @@ class LightParser:
             self.node_tags[target] = ["macro"]
             self.chunk_kinds[target] = "macro"
         else:
+            # Resolution order:
+            #   1. IN / OUT block  or  EQU * table  (existing subroutine patterns)
+            #   2. <name> CSECT … DS 0F  (control-section definition)
+            #   3. Copybook file  (COPY <name> targets resolved to a deps file)
             sub_lines = self._find_subroutine(target)
-            self.chunk_kinds[target] = "sub"
+            if sub_lines is not None:
+                self.chunk_kinds[target] = "sub"
+            else:
+                sub_lines = self._find_csect_block(target)
+                if sub_lines is not None:
+                    self.chunk_kinds[target] = "csect"
+                    self.node_tags[target] = ["csect"]
+                else:
+                    sub_lines = self._find_copybook_file(target)
+                    if sub_lines is not None:
+                        self.chunk_kinds[target] = "copybook"
+                        self.node_tags[target] = ["copybook"]
+                    else:
+                        self.chunk_kinds[target] = "sub"
         self.flow.setdefault(target, [])
         if sub_lines is None:
             self.missing.append(target)
             return
         self._save_chunk(target, sub_lines, kind=self.chunk_kinds.get(target, "sub"))
         queue.append((target, sub_lines))
+
+    def _find_csect_block(self, name: str) -> list[str] | None:
+        """Search all source files for a ``<name> CSECT`` definition block.
+
+        Captures from the CSECT statement until the first of:
+        * A ``DS 0F / 0H / 0D / 0B`` alignment directive (included, then stop)
+        * The start of a *different* CSECT (excluded)
+        * An ``END`` statement (included, then stop)
+        * An ``EJECT`` directive (excluded)
+        * End of file
+
+        Returns the captured lines, or ``None`` if *name* has no CSECT.
+        """
+        csect_re = re.compile(rf"^{re.escape(name)}\s+CSECT\b", re.IGNORECASE)
+        for f in self._search_files():
+            try:
+                all_lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(all_lines):
+                if not csect_re.match(line):
+                    continue
+                block = [line]
+                for j in range(i + 1, len(all_lines)):
+                    next_line = all_lines[j]
+                    # DS alignment directive → include and stop
+                    if _DS_ALIGN_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # Another CSECT starts → stop before it
+                    if _CSECT_RE.match(next_line) and not csect_re.match(next_line):
+                        break
+                    # END statement → include and stop
+                    if _END_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # EJECT → natural page break, stop before it
+                    if _EJECT_RE.match(next_line):
+                        break
+                    block.append(next_line)
+                return block
+        return None
+
+    def _find_copybook_file(self, name: str) -> list[str] | None:
+        """Search *deps_dir* for a copybook file whose stem matches *name*.
+
+        Looks recursively under *deps_dir* for any file (regardless of
+        extension) whose base name without extension matches *name*
+        case-insensitively.  Returns the full file content as a list of
+        lines, or ``None`` if no matching file is found.
+        """
+        if not self.deps_dir or not self.deps_dir.is_dir():
+            return None
+        name_upper = name.upper()
+        for f in sorted(self.deps_dir.rglob("*")):
+            if f.is_file() and f.stem.upper() == name_upper:
+                try:
+                    return f.read_text(encoding="utf-8", errors="replace").splitlines()
+                except OSError:
+                    continue
+        return None
 
     def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines

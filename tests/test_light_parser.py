@@ -830,19 +830,24 @@ class TestEqStarAndVtranSupport:
         assert "EQU" in block[0]
         assert "VTRANTAB" in block[0]
 
-    def test_equ_star_block_ends_before_next_label(self, tmp_path):
+    def test_equ_star_block_ends_at_eject(self, tmp_path):
+        """EQU * table ends at EJECT; labeled statements inside are included."""
         src = textwrap.dedent("""\
         VTRANTAB EQU   *
                  VTRAN 05,0,TCR050,1001
-        NEXTLBL  DS    0H
+        INRTBL   DS    0H
                  BR    14
+                 EJECT
+        AFTEREJ  DS    0H
         """)
         driver = tmp_path / "prog.asm"
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
         block = lp._find_subroutine("VTRANTAB")
         assert block is not None
-        assert not any("NEXTLBL" in ln for ln in block)
+        assert any("INRTBL" in ln for ln in block)           # labeled line inside → included
+        assert any("EJECT" in ln.upper() for ln in block)   # EJECT is the boundary
+        assert not any("AFTEREJ" in ln for ln in block)      # content after EJECT → excluded
 
     def test_equ_star_block_contains_vtran_entries(self, tmp_path):
         src = textwrap.dedent("""\
@@ -1217,3 +1222,898 @@ class TestMacroHeaderAndEquAliasResolution:
         assert lp.flow["TESTMOD"].count("ROUTINE1") == 1
         assert "TESTMOD" in lp.chunks
         assert "ROUTINE1" in lp.chunks
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Nested flow JSON for documentation generation
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _inline_lp(tmp_path, driver_src: str, deps: dict[str, str] | None = None):
+    """Helper: write inline source, run LightParser over all lines, return instance."""
+    driver = tmp_path / "driver.asm"
+    driver.write_text(driver_src)
+    deps_dir = tmp_path / "deps"
+    deps_dir.mkdir()
+    for fname, content in (deps or {}).items():
+        (deps_dir / fname).write_text(content)
+    lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=tmp_path / "out")
+    lp.run(1, driver_src.count("\n"))
+    return lp
+
+
+class TestNestedFlow:
+    """Tests for LightParser.to_nested_flow() and to_nested_flow_str()."""
+
+    # ── top-level structure ───────────────────────────────────────────────────
+
+    def test_top_level_keys_present(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        assert set(nf.keys()) >= {"format", "entry", "chunks", "tree", "missing"}
+
+    def test_format_field(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["format"] == "nested_flow_v1"
+
+    def test_entry_is_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["entry"] == "main"
+
+    def test_missing_forwarded(self, tmp_path):
+        src = "PROG  CSECT\n         GO    NOSUCH\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert "NOSUCH" in lp.to_nested_flow()["missing"]
+
+    # ── flat chunks dict ──────────────────────────────────────────────────────
+
+    def test_chunks_dict_contains_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert "main" in lp.to_nested_flow()["chunks"]
+
+    def test_chunks_dict_has_source_lines(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert isinstance(chunks["main"]["source_lines"], list)
+        assert len(chunks["main"]["source_lines"]) > 0
+        assert isinstance(chunks["SUBA"]["source_lines"], list)
+
+    def test_chunks_dict_has_kind_and_tags(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        entry = lp.to_nested_flow()["chunks"]["main"]
+        assert entry["kind"] in ("sub", "macro")
+        assert isinstance(entry["tags"], list)
+
+    def test_chunks_dict_has_line_count(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert chunks["main"]["line_count"] == len(lp.chunks["main"])
+        assert chunks["SUBA"]["line_count"] == len(lp.chunks["SUBA"])
+
+    # ── tree root ─────────────────────────────────────────────────────────────
+
+    def test_tree_root_is_main(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow()["tree"]["name"] == "main"
+
+    def test_tree_root_has_source_lines(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        assert "source_lines" in tree
+        assert isinstance(tree["source_lines"], list)
+
+    def test_tree_root_has_calls_list(self, tmp_path):
+        src = "PROG  CSECT\n         BR    14\n"
+        lp = _inline_lp(tmp_path, src)
+        assert isinstance(lp.to_nested_flow()["tree"]["calls"], list)
+
+    # ── child expansion ───────────────────────────────────────────────────────
+
+    def test_child_fully_expanded_on_first_visit(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        child = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        assert "source_lines" in child
+        assert "calls" in child
+        assert child.get("ref") is not True
+
+    def test_nested_grandchild_expanded(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA  IN
+                 GO    SUBB
+                 BR    14
+                 OUT
+        SUBB  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in suba["calls"] if c["name"] == "SUBB")
+        assert "source_lines" in subb
+        assert subb.get("ref") is not True
+
+    # ── ref stubs for shared callees ──────────────────────────────────────────
+
+    def test_shared_callee_is_ref_on_second_visit(self, tmp_path):
+        """SHARED is called from both SUBA and SUBB; second encounter → ref stub."""
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        shared_via_suba = next(c for c in suba["calls"] if c["name"] == "SHARED")
+        shared_via_subb = next(c for c in subb["calls"] if c["name"] == "SHARED")
+        # Exactly one is fully expanded; the other is a ref stub.
+        fully = [shared_via_suba, shared_via_subb]
+        refs   = [n for n in fully if n.get("ref") is True]
+        expanded = [n for n in fully if n.get("ref") is not True]
+        assert len(refs) == 1
+        assert len(expanded) == 1
+        assert "source_lines" in expanded[0]
+
+    def test_ref_stub_has_no_source_lines(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB  IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        all_shared = [
+            n for calls in (suba["calls"], subb["calls"])
+            for n in calls if n["name"] == "SHARED"
+        ]
+        stub = next(n for n in all_shared if n.get("ref") is True)
+        assert "source_lines" not in stub
+
+    # ── macro nodes ───────────────────────────────────────────────────────────
+
+    def test_macro_node_kind_is_macro(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 MYMAC SUBA
+                 BR    14
+                 MACRO
+        &LBL     MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        # MYMAC should appear in the chunks catalogue as a macro
+        if "MYMAC" in nf["chunks"]:
+            assert nf["chunks"]["MYMAC"]["kind"] == "macro"
+
+    def test_macro_node_tag_in_tree(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG  CSECT
+                 MYMAC SUBA
+                 BR    14
+                 MACRO
+        &LBL     MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA  IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        nf = lp.to_nested_flow()
+        def find_node(node, name):
+            if node["name"] == name:
+                return node
+            for child in node.get("calls", []):
+                found = find_node(child, name)
+                if found:
+                    return found
+            return None
+        macro_node = find_node(nf["tree"], "MYMAC")
+        if macro_node and not macro_node.get("ref"):
+            assert "macro" in macro_node.get("tags", [])
+
+    # ── JSON serialisation ────────────────────────────────────────────────────
+
+    def test_to_nested_flow_str_is_valid_json(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        parsed = json.loads(lp.to_nested_flow_str())
+        assert parsed["format"] == "nested_flow_v1"
+
+    def test_to_nested_flow_str_round_trips(self, tmp_path):
+        src = "PROG  CSECT\n         GO    SUBA\n         BR    14\nSUBA  IN\n         BR    14\n         OUT\n"
+        lp = _inline_lp(tmp_path, src)
+        assert lp.to_nested_flow() == json.loads(lp.to_nested_flow_str())
+
+    # ── CLI flag ──────────────────────────────────────────────────────────────
+
+    def test_nested_flow_cli_creates_file(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+            "--nested-flow",
+        ])
+        assert (out / "cfg" / "nested_flow.json").exists()
+
+    def test_nested_flow_cli_file_is_valid_json(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+            "--nested-flow",
+        ])
+        content = (out / "cfg" / "nested_flow.json").read_text()
+        parsed = json.loads(content)
+        assert parsed["format"] == "nested_flow_v1"
+        assert "tree" in parsed
+        assert "chunks" in parsed
+
+    def test_nested_flow_not_written_without_flag(self, tmp_path):
+        from hlasm_parser.cli import main
+        out = tmp_path / "out"
+        main([
+            str(DRIVER),
+            "-c", str(DEPS_DIR),
+            "--light-parser",
+            "--start-line", str(MAIN_START),
+            "--end-line", str(MAIN_END),
+            "-s", str(out),
+        ])
+        assert not (out / "cfg" / "nested_flow.json").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Call-order preservation and seq field
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCallOrderAndSeq:
+    """Verify that flow preserves source order and nested_flow exposes seq."""
+
+    # ── source order in self.flow ─────────────────────────────────────────────
+
+    def test_go_before_macro_order_preserved(self, tmp_path):
+        """GO call on line 2, macro call on line 3 → GO target first in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 MYMAC TCR051
+                 BR    14
+        MACRO
+        MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 4)
+        # SUBA (GO on line 2) must come before MYMAC (macro on line 3)
+        assert lp.flow["main"].index("SUBA") < lp.flow["main"].index("MYMAC")
+
+    def test_macro_before_go_order_preserved(self, tmp_path):
+        """Macro call on line 2, GO call on line 3 → macro first in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 MYMAC TCR051
+                 GO    SUBA
+                 BR    14
+        MACRO
+        MYMAC &P1
+                 GO    &P1
+                 MEND
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 4)
+        # MYMAC (macro on line 2) must come before SUBA (GO on line 3)
+        assert lp.flow["main"].index("MYMAC") < lp.flow["main"].index("SUBA")
+
+    def test_multiple_go_calls_order_preserved(self, tmp_path):
+        """Three sequential GO calls appear in source order in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    FIRST
+                 GO    SECOND
+                 GO    THIRD
+                 BR    14
+        FIRST    IN
+                 BR    14
+                 OUT
+        SECOND   IN
+                 BR    14
+                 OUT
+        THIRD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert order.index("FIRST") < order.index("SECOND") < order.index("THIRD")
+
+    def test_l_v_target_comes_before_go_if_first_in_source(self, tmp_path):
+        """L Rx,=V(NAME) on line 2, GO on line 3 → L target precedes GO target."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTAB)
+                 GO    SUBA
+                 BR    14
+        VTAB     EQU   *
+                 MACRO 05,0,TCR050,1001
+                 EJECT
+        SUBA     IN
+                 BR    14
+                 OUT
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert "VTAB" in order
+        assert "SUBA" in order
+        assert order.index("VTAB") < order.index("SUBA")
+
+    # ── L targets visible in nested flow tree ────────────────────────────────
+
+    def test_l_v_target_appears_in_nested_flow_tree(self, tmp_path):
+        """L Rx,=V(NAME) target must show up as a call node in the tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VTAB)
+                 BR    14
+        VTAB     EQU   *
+                 05,0,TCR050,1001
+                 EJECT
+        TCR050   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        call_names = [c["name"] for c in tree["calls"]]
+        assert "VTAB" in call_names
+
+    def test_plain_l_target_appears_in_nested_flow_tree(self, tmp_path):
+        """Plain L <name> target must show up as a call node in the tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     MYSUB
+                 BR    14
+        MYSUB    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        call_names = [c["name"] for c in tree["calls"]]
+        assert "MYSUB" in call_names
+
+    def test_l_target_has_source_lines_in_nested_flow(self, tmp_path):
+        """L-resolved sub should have source_lines in its nested flow node."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(MYSUB)
+                 BR    14
+        MYSUB    IN
+                 MVI   RESULT,C'Y'
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        mysub_node = next(c for c in tree["calls"] if c["name"] == "MYSUB")
+        assert mysub_node.get("ref") is not True
+        assert len(mysub_node.get("source_lines", [])) > 0
+
+    # ── seq field ─────────────────────────────────────────────────────────────
+
+    def test_seq_field_present_on_call_nodes(self, tmp_path):
+        """Every node in the calls list must have a seq field."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA     IN
+                 BR    14
+                 OUT
+        SUBB     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        for child in tree["calls"]:
+            assert "seq" in child, f"Missing seq on node {child['name']}"
+
+    def test_seq_values_are_one_indexed_and_sequential(self, tmp_path):
+        """seq must be 1, 2, 3… matching the calls list position."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    FIRST
+                 GO    SECOND
+                 GO    THIRD
+                 BR    14
+        FIRST    IN
+                 BR    14
+                 OUT
+        SECOND   IN
+                 BR    14
+                 OUT
+        THIRD    IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        for i, child in enumerate(tree["calls"], start=1):
+            assert child["seq"] == i
+
+    def test_seq_matches_source_call_order(self, tmp_path):
+        """seq=1 is the first routine called in source, seq=2 the second, etc."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    ALPHA
+                 GO    BETA
+                 BR    14
+        ALPHA    IN
+                 BR    14
+                 OUT
+        BETA     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        alpha = next(c for c in tree["calls"] if c["name"] == "ALPHA")
+        beta = next(c for c in tree["calls"] if c["name"] == "BETA")
+        assert alpha["seq"] == 1
+        assert beta["seq"] == 2
+
+    def test_seq_on_ref_stub(self, tmp_path):
+        """ref stubs (shared callees) also carry a seq field."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 GO    SUBB
+                 BR    14
+        SUBA     IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SUBB     IN
+                 GO    SHARED
+                 BR    14
+                 OUT
+        SHARED   IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in tree["calls"] if c["name"] == "SUBB")
+        all_shared = [
+            n for calls in (suba["calls"], subb["calls"])
+            for n in calls if n["name"] == "SHARED"
+        ]
+        # Both occurrences of SHARED must have seq (one full, one ref stub)
+        for node in all_shared:
+            assert "seq" in node
+
+    def test_seq_on_deeply_nested_grandchild(self, tmp_path):
+        """seq is present on grandchild nodes too."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 GO    SUBB
+                 BR    14
+                 OUT
+        SUBB     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        suba = next(c for c in tree["calls"] if c["name"] == "SUBA")
+        subb = next(c for c in suba["calls"] if c["name"] == "SUBB")
+        assert subb["seq"] == 1  # SUBB is the only (first) call inside SUBA
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COPY directive, CSECT block, and copybook-file resolution
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCopyAndCsectResolution:
+    """COPY directive, CSECT block, and copybook file fallback strategies."""
+
+    # ── COPY directive ────────────────────────────────────────────────────────
+
+    def test_copy_directive_adds_copybook_to_flow(self, tmp_path):
+        """COPY MYBOOK in main → MYBOOK appears as a child in flow["main"]."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYBOOK" in lp.flow["main"]
+
+    def test_copy_before_go_order_preserved(self, tmp_path):
+        """COPY on line 2, GO on line 3 → MYBOOK precedes SUBA in flow."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 GO    SUBA
+                 BR    14
+        SUBA     IN
+                 BR    14
+                 OUT
+        """)
+        lp = _inline_lp(tmp_path, src)
+        order = lp.flow["main"]
+        assert "MYBOOK" in order
+        assert "SUBA" in order
+        assert order.index("MYBOOK") < order.index("SUBA")
+
+    def test_copy_resolved_from_deps_file(self, tmp_path):
+        """COPY MYBOOK → file deps/MYBOOK.cpy is found and captured as a chunk."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "* copybook content\n         DS    CL80\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.chunks
+        assert "MYBOOK" not in lp.missing
+
+    def test_copy_resolved_case_insensitive_filename(self, tmp_path):
+        """Copybook file matching is case-insensitive on the stem."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"mybook.asm": "* lowercase file\n         DS    CL40\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYBOOK" in lp.chunks
+        assert "MYBOOK" not in lp.missing
+
+    def test_copy_chunk_kind_is_copybook(self, tmp_path):
+        """Resolved COPY targets get kind='copybook'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert lp.chunk_kinds.get("MYBOOK") == "copybook"
+
+    def test_copy_node_tagged_copybook(self, tmp_path):
+        """Resolved COPY target has node_tags=['copybook']."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert lp.node_tags.get("MYBOOK") == ["copybook"]
+
+    def test_copy_missing_when_no_file(self, tmp_path):
+        """COPY UNKNOWN with no matching file → UNKNOWN in missing list."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  UNKNOWN
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "UNKNOWN" in lp.missing
+
+    def test_copybook_appears_in_nested_flow_tree(self, tmp_path):
+        """Resolved COPY target appears in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        tree = lp.to_nested_flow()["tree"]
+        names = [c["name"] for c in tree["calls"]]
+        assert "MYBOOK" in names
+
+    def test_copybook_kind_in_nested_flow_chunks(self, tmp_path):
+        """Copybook kind 'copybook' is reflected in nested_flow chunks dict."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        chunks = lp.to_nested_flow()["chunks"]
+        assert chunks["MYBOOK"]["kind"] == "copybook"
+
+    def test_copybook_dot_coloured_lightgreen(self, tmp_path):
+        """Copybook nodes are coloured lightgreen in DOT output."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        dot = lp.to_dot()
+        assert "lightgreen" in dot
+
+    def test_copybook_mermaid_has_classDef(self, tmp_path):
+        """Mermaid output includes a copybook classDef when copybooks present."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 COPY  MYBOOK
+                 BR    14
+        """)
+        deps = {"MYBOOK.cpy": "         DS    CL10\n"}
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        mmd = lp.to_mermaid()
+        assert "classDef copybook" in mmd
+        assert "class MYBOOK copybook;" in mmd
+
+    # ── CSECT block resolution ────────────────────────────────────────────────
+
+    def test_csect_block_resolved_as_fallback(self, tmp_path):
+        """<name> CSECT is found when no IN/OUT block exists for that name."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert "MYSUB" in lp.chunks
+        assert "MYSUB" not in lp.missing
+
+    def test_csect_block_ends_at_ds_0f(self, tmp_path):
+        """CSECT block stops at (and includes) DS 0F."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 DS    0F
+        NEXTLBL  DS    CL10
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        # DS 0F line is included
+        assert any("DS" in ln and "0F" in ln for ln in chunk)
+        # NEXTLBL line is NOT included
+        assert not any("NEXTLBL" in ln for ln in chunk)
+
+    def test_csect_block_ends_at_eject(self, tmp_path):
+        """CSECT block stops before an EJECT directive."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 EJECT
+        AFTER    DS    CL10
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        assert not any("AFTER" in ln for ln in chunk)
+        assert not any("EJECT" in ln for ln in chunk)
+
+    def test_csect_block_stops_before_next_csect(self, tmp_path):
+        """CSECT block does not bleed into the next CSECT definition."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 MVI   FLAG,C'Y'
+                 BR    14
+        OTHER    CSECT
+                 MVI   FLAG2,C'N'
+                 BR    14
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        assert not any("OTHER" in ln for ln in chunk)
+        assert not any("FLAG2" in ln for ln in chunk)
+
+    def test_csect_chunk_kind_is_csect(self, tmp_path):
+        """CSECT-resolved targets get kind='csect'."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert lp.chunk_kinds.get("MYSUB") == "csect"
+
+    def test_csect_node_tagged_csect(self, tmp_path):
+        """CSECT-resolved targets have node_tags=['csect']."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        assert lp.node_tags.get("MYSUB") == ["csect"]
+
+    def test_csect_appears_in_nested_flow_tree(self, tmp_path):
+        """CSECT-resolved target appears in the nested flow tree."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        tree = lp.to_nested_flow()["tree"]
+        names = [c["name"] for c in tree["calls"]]
+        assert "MYSUB" in names
+
+    def test_csect_dot_coloured_lightyellow(self, tmp_path):
+        """CSECT nodes are coloured lightyellow in DOT output."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        dot = lp.to_dot()
+        assert "lightyellow" in dot
+
+    def test_csect_mermaid_has_classDef(self, tmp_path):
+        """Mermaid output includes a csect classDef when CSECT nodes present."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    CSECT
+                 BR    14
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        mmd = lp.to_mermaid()
+        assert "classDef csect" in mmd
+        assert "class MYSUB csect;" in mmd
+
+    def test_in_out_takes_priority_over_csect(self, tmp_path):
+        """IN/OUT block wins over CSECT when both match the same name."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYSUB
+                 BR    14
+        MYSUB    IN
+                 MVI   FLAG,C'Y'
+                 OUT
+        MYSUB    CSECT
+                 MVI   FLAG,C'Z'
+                 DS    0F
+        """)
+        lp = _inline_lp(tmp_path, src)
+        chunk = lp.chunks.get("MYSUB", [])
+        # Must have taken the IN/OUT version (contains 'Y' not 'Z')
+        assert any("C'Y'" in ln for ln in chunk)
+        assert not any("C'Z'" in ln for ln in chunk)
+        assert lp.chunk_kinds.get("MYSUB") == "sub"
+
+    def test_csect_in_deps_file_resolved(self, tmp_path):
+        """CSECT block defined in a deps file is found and captured."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    MYMOD
+                 BR    14
+        """)
+        deps = {
+            "mymod.asm": textwrap.dedent("""\
+            MYMOD    CSECT
+                     MVI   X,C'A'
+                     BR    14
+                     DS    0F
+            """),
+        }
+        lp = _inline_lp(tmp_path, src, deps=deps)
+        assert "MYMOD" in lp.chunks
+        assert "MYMOD" not in lp.missing
+        assert lp.chunk_kinds.get("MYMOD") == "csect"
