@@ -1,5 +1,5 @@
 """Light Parser – extract a line-range "main" block and recursively resolve
-GO and L (Link) subroutine targets via IN / OUT markers.
+GO, L, and macro-based targets via IN / OUT markers.
 
 Flow
 ----
@@ -8,12 +8,15 @@ Flow
      * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
      * ``L Rx,=V(name)``  V-type address constant (primary Link form).
      * ``L <name>``  plain Link where the operand is a bare identifier.
-     * ``VTRAN seq,type,<name>,id``  translation-table entry (3rd operand).
-3. For each *name*, search the driver + every file under *deps_dir* for a
-   block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
-   If no IN/OUT block is found, fall back to a ``<name>  EQU  *`` table
-   (common for translation dispatch tables such as VTRANTAB).  The EQU *
-   block extends until the next labeled statement in the source.
+     * Macro invocations resolved from discovered ``MACRO ... MEND`` blocks.
+3. For each *name*, search the driver + every file under *deps_dir* using a
+   cascade of four strategies:
+     a. ``<name>  IN`` … ``OUT`` block (or the next ``IN`` marker).
+     b. ``<name>  EQU  *`` table (dispatch/translation anchor, until EJECT).
+     c. ``<name>  CSECT`` block (control-section definition, until DS 0F/EJECT/END).
+     d. Copybook file in *deps_dir* whose stem matches *name* (from ``COPY``
+        directive or as a resolution of any unresolved target).
+   ``COPY <name>`` statements are also detected as direct call edges.
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
 5. Expose the parent→children flow map via :meth:`to_json`, :meth:`to_dot`,
    and :meth:`to_mermaid`.
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
@@ -34,9 +38,8 @@ _GO_RE = re.compile(
     re.IGNORECASE,
 )
 
-# L Rx,=V(SUBNAME) – the primary Link form: load an external subroutine
-# address via a V-type address constant, e.g.  L     R15,=V(EXTSUB)
-_V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=V\((\w+)\)", re.IGNORECASE)
+# L Rx,=V(SUBNAME) / L Rx,=A(SUBNAME) – load callable address constant.
+_V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=(?:V|A)\((\w+)\)", re.IGNORECASE)
 
 # L <name> as a plain Link call (no register / no comma).
 #   • Leading whitespace  →  L is in opcode column, not label column.
@@ -46,18 +49,14 @@ _LINK_RE = re.compile(
     r"^\s+L\s+([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*(?:\*.*)?$",
     re.IGNORECASE,
 )
+# LOAD EP=<name> / EP=(<name>) call form.
+_LOAD_EP_RE = re.compile(
+    r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*\)?",
+    re.IGNORECASE,
+)
 
 # Register aliases R0–R15 that would otherwise look like plain Link targets.
 _REGISTER_RE = re.compile(r"^R(?:1[0-5]|[0-9])$", re.IGNORECASE)
-
-# VTRAN seq,type,SUBNAME,id – translation-table entry; 3rd operand is the
-# subroutine name dispatched at run time.  Accepts an optional leading label.
-#   VTRANTAB VTRAN 05,0,TCR050,1001
-#            VTRAN 05,0,TCR051,1002
-_VTRAN_RE = re.compile(
-    r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)VTRAN\s+[^,]+,[^,]+,(\w+)",
-    re.IGNORECASE,
-)
 
 # Matches OUT in opcode position (with optional leading label or spaces)
 _OUT_RE = re.compile(r"^\s*(?:\w+\s+)?OUT\b", re.IGNORECASE)
@@ -68,11 +67,65 @@ _ANY_IN_RE = re.compile(r"^\w+\s+IN\b", re.IGNORECASE)
 # Matches ``NAME  EQU  *`` – translation/dispatch table anchor.
 # Used as a fallback chunk boundary when no IN/OUT block exists for a name.
 _EQU_STAR_RE_TEMPLATE = r"^{name}\s+EQU\s+\*"
+_MACRO_START_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MACRO\b", re.IGNORECASE)
+_MEND_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?MEND\b", re.IGNORECASE)
+_EJECT_RE = re.compile(r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?EJECT\b", re.IGNORECASE)
+
+# DS 0F / 0H / 0D / 0B — common HLASM alignment / section-boundary directive.
+_DS_ALIGN_RE = re.compile(r"^\s+DS\s+0[FHDB]\b", re.IGNORECASE)
+
+# END statement in opcode position (leading whitespace required to avoid
+# matching a label that starts with "END…").
+_END_RE = re.compile(r"^\s+END\b", re.IGNORECASE)
+
+# CSECT definition: <name> CSECT
+_CSECT_RE = re.compile(r"^\w[\w@#$]{0,7}\s+CSECT\b", re.IGNORECASE)
+
+# Generic dispatch-style macro pattern with a target as the 3rd operand.
+# Example: FOO 05,0,TCR051,1002  ->  TCR051
+_DISPATCH_STYLE_RE = re.compile(
+    r"^[0-9]+$|^X'[0-9A-F]+'$|^C'.*'$",
+    re.IGNORECASE,
+)
+
+# Statements that may legally appear with opcode in column 1.
+_COL1_OPCODE_HINTS = {
+    "GO",
+    "GOIF",
+    "GOIFNOT",
+    "L",
+    "LOAD",
+    "COPY",
+    "EJECT",
+    "END",
+    "MACRO",
+    "MEND",
+}
 
 
 def _in_pattern(name: str) -> re.Pattern[str]:
     """Return a compiled pattern that matches ``<name>  IN`` at line start."""
     return re.compile(rf"^{re.escape(name)}\s+IN\b", re.IGNORECASE)
+
+
+@dataclass
+class MacroDefinition:
+    name: str
+    source_file: str
+    header_line: str
+    parameters: list[str]
+    lines: list[str]
+    call_params: list[str]
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "source_file": self.source_file,
+            "header_line": self.header_line,
+            "parameters": self.parameters,
+            "call_params": self.call_params,
+            "line_count": len(self.lines),
+        }
 
 
 class LightParser:
@@ -105,6 +158,16 @@ class LightParser:
         self.flow: dict[str, list[str]] = {}
         # names that could not be located in any search file
         self.missing: list[str] = []
+        # macro name -> macro definition
+        self.macros: dict[str, MacroDefinition] = {}
+        # symbol aliases from EQU (e.g. VALUE EQU TCR051)
+        self.equ_aliases: dict[str, str] = {}
+        # nodes that represent macro chunks in the graph
+        self.macro_nodes: set[str] = set()
+        # node -> tags for serialised graph output
+        self.node_tags: dict[str, list[str]] = {"main": ["entry"]}
+        # node -> chunk kind (sub|macro)
+        self.chunk_kinds: dict[str, str] = {"main": "sub"}
 
     # ------------------------------------------------------------------
     # Public API
@@ -119,6 +182,10 @@ class LightParser:
             1-indexed, inclusive line numbers within *driver_path*.
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.macros = self._discover_macros()
+        self.equ_aliases = self._discover_equ_aliases()
+        self.macro_nodes = set(self.macros.keys())
+        self._write_macro_chunks()
 
         main_lines = self._extract_range(self.driver_path, start_line, end_line)
         self._save_chunk("main", main_lines)
@@ -129,20 +196,29 @@ class LightParser:
 
         while queue:
             parent, lines = queue.pop(0)
-            for target in self._find_go_targets(lines):
-                if target not in self.flow[parent]:
-                    self.flow[parent].append(target)
-                if target in visited:
-                    continue
-                visited.add(target)
+            # Scan all calls in source-line order (macros and GO/L interleaved).
+            for call in self._find_calls_ordered(lines, self.macros, parent):
+                if call["kind"] == "macro":
+                    macro_name = call["name"]
+                    if macro_name not in self.flow[parent]:
+                        self.flow[parent].append(macro_name)
+                    self.flow.setdefault(macro_name, [])
+                    self.node_tags[macro_name] = ["macro"]
+                    self.chunk_kinds[macro_name] = "macro"
+                    if macro_name not in visited:
+                        visited.add(macro_name)
+                        queue.append((macro_name, self.macros[macro_name].lines))
+                    for target in call["targets"]:
+                        if target not in self.flow[macro_name]:
+                            self.flow[macro_name].append(target)
+                        self._resolve_target(target, visited, queue)
+                else:  # "direct" — GO / L target
+                    target = call["name"]
+                    if target not in self.flow[parent]:
+                        self.flow[parent].append(target)
+                    self._resolve_target(target, visited, queue)
 
-                sub_lines = self._find_subroutine(target)
-                self.flow.setdefault(target, [])
-                if sub_lines is None:
-                    self.missing.append(target)
-                else:
-                    self._save_chunk(target, sub_lines)
-                    queue.append((target, sub_lines))
+        self._write_macro_catalog()
 
     # ------------------------------------------------------------------
     # Output helpers
@@ -154,6 +230,8 @@ class LightParser:
             "entry": "main",
             "flow": self.flow,
             "chunk_line_counts": {n: len(ls) for n, ls in self.chunks.items()},
+            "macro_catalog": [m.to_dict() for m in self.macros.values()],
+            "node_tags": self.node_tags,
             "missing": self.missing,
         }
 
@@ -169,8 +247,23 @@ class LightParser:
             '  node [shape=box fontname="Courier"];',
         ]
         for name in self.flow:
-            colour = "red" if name in missing_set else "lightblue"
-            lines.append(f'  "{name}" [style=filled fillcolor={colour}];')
+            kind = self.chunk_kinds.get(name, "sub")
+            if name in missing_set:
+                colour = "red"
+                shape = "box"
+            elif kind == "macro":
+                colour = "khaki"
+                shape = "component"
+            elif kind == "copybook":
+                colour = "lightgreen"
+                shape = "note"
+            elif kind == "csect":
+                colour = "lightyellow"
+                shape = "box"
+            else:
+                colour = "lightblue"
+                shape = "box"
+            lines.append(f'  "{name}" [style=filled fillcolor={colour} shape={shape}];')
         for parent, children in self.flow.items():
             for child in children:
                 lines.append(f'  "{parent}" -> "{child}";')
@@ -183,7 +276,102 @@ class LightParser:
         for parent, children in self.flow.items():
             for child in children:
                 lines.append(f"  {parent} --> {child}")
+        if self.macro_nodes:
+            lines.append("  classDef macro fill:#f4e8a5,stroke:#7f6a00,stroke-width:1px;")
+            for name in sorted(self.macro_nodes):
+                if name in self.flow:
+                    lines.append(f"  class {name} macro;")
+        copybook_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "copybook" and n in self.flow
+        )
+        if copybook_nodes:
+            lines.append("  classDef copybook fill:#90ee90,stroke:#006400,stroke-width:1px;")
+            for name in copybook_nodes:
+                lines.append(f"  class {name} copybook;")
+        csect_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "csect" and n in self.flow
+        )
+        if csect_nodes:
+            lines.append("  classDef csect fill:#fffacd,stroke:#a0a000,stroke-width:1px;")
+            for name in csect_nodes:
+                lines.append(f"  class {name} csect;")
         return "\n".join(lines)
+
+    def to_nested_flow(self) -> dict:
+        """Return a nested call-tree dict for documentation generation.
+
+        Intended use
+        ------------
+        A documentation generator (e.g. LLM-based) can read this single file
+        to understand the *full* call context of every subroutine without
+        having to open and cross-reference individual chunk files.
+
+        Schema
+        ------
+        ``chunks`` (flat dict, keyed by name):
+            kind         – ``"sub"`` | ``"macro"``
+            tags         – list of string tags (e.g. ``["entry"]``, ``["macro"]``)
+            line_count   – number of source lines in the chunk
+            source_lines – raw source lines (list of str)
+
+        ``tree`` (recursive node):
+            name         – chunk name
+            kind / tags  – same as chunks dict entry
+            source_lines – raw source lines (absent on ref-stub nodes)
+            calls        – ordered list of child nodes **in source call order**
+            seq          – 1-indexed call-sequence position within the parent
+                           (``1`` = first call encountered in parent's source)
+            ref          – ``True`` when this node was already fully expanded
+                           higher up in the tree (avoids duplication and
+                           infinite recursion on shared/cyclic callees)
+
+        ``missing`` – names that could not be resolved in any source file.
+        """
+        # ── flat catalogue ────────────────────────────────────────────────
+        chunks_dict: dict[str, dict] = {}
+        for name, lines in self.chunks.items():
+            chunks_dict[name] = {
+                "kind": self.chunk_kinds.get(name, "sub"),
+                "tags": self.node_tags.get(name, []),
+                "line_count": len(lines),
+                "source_lines": lines,
+            }
+
+        # ── recursive tree (DFS; each node fully expanded once) ───────────
+        expanded: set[str] = set()
+
+        def build_node(name: str) -> dict:
+            if name in expanded:
+                # Already expanded higher up – return a lightweight ref stub.
+                return {"name": name, "ref": True}
+            expanded.add(name)
+            info = chunks_dict.get(name, {})
+            calls = []
+            for seq_num, child in enumerate(self.flow.get(name, []), start=1):
+                child_node = build_node(child)
+                # seq marks the 1-indexed call order within this block so
+                # documentation generators can reconstruct "what is called first".
+                child_node["seq"] = seq_num
+                calls.append(child_node)
+            return {
+                "name": name,
+                "kind": info.get("kind", "sub"),
+                "tags": info.get("tags", []),
+                "source_lines": info.get("source_lines", []),
+                "calls": calls,
+            }
+
+        return {
+            "format": "nested_flow_v1",
+            "entry": "main",
+            "chunks": chunks_dict,
+            "tree": build_node("main"),
+            "missing": self.missing,
+        }
+
+    def to_nested_flow_str(self) -> str:
+        """Return :meth:`to_nested_flow` serialised as an indented JSON string."""
+        return json.dumps(self.to_nested_flow(), indent=2)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -196,8 +384,13 @@ class LightParser:
         return all_lines[max(0, start - 1): end]
 
     @staticmethod
-    def _find_go_targets(lines: list[str]) -> list[str]:
-        """Return subroutine names called via GO, L, or VTRAN in *lines*.
+    def _find_go_targets(
+        lines: list[str],
+        macro_catalog: dict[str, MacroDefinition] | None = None,
+        *,
+        include_known_macros: bool = True,
+    ) -> list[str]:
+        """Return subroutine names called via GO, L, or macro calls in *lines*.
 
         Handles:
         * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
@@ -205,11 +398,14 @@ class LightParser:
         * ``L <name>``  plain Link where the operand is a bare identifier,
           distinguished from Load-register by the absence of a comma or
           parenthesis.  Register aliases R0–R15 are excluded.
-        * ``VTRAN seq,type,<name>,id``  translation-table dispatch entry;
-          the 3rd comma-separated operand is the target subroutine name.
+        * ``LOAD EP=<name>`` or ``LOAD ...,EP=(<name>)``.
+        * macro calls discovered from ``MACRO`` definitions.
+        * generic dispatch-style macro calls where the 3rd operand is symbolic.
         """
         seen: set[str] = set()
         targets: list[str] = []
+        macro_catalog = macro_catalog or {}
+        macro_names = set(macro_catalog.keys())
 
         def _add(name: str) -> None:
             name = name.upper()
@@ -233,13 +429,277 @@ class LightParser:
             m = _LINK_RE.match(line)
             if m and not _REGISTER_RE.match(m.group(1)):
                 _add(m.group(1))
-            # VTRAN seq,type,SUBNAME,id – translation-table dispatch entry;
-            # the 3rd comma-separated operand is the subroutine name.
-            m = _VTRAN_RE.match(line)
+            m = _LOAD_EP_RE.match(line)
             if m:
                 _add(m.group(1))
+            _, opcode, operand_field = LightParser._split_statement(line)
+            if not opcode:
+                continue
+            op_u = opcode.upper()
+            operands = LightParser._split_operands(operand_field)
+
+            if include_known_macros and op_u in macro_names:
+                for target in LightParser._targets_from_known_macro_call(
+                    macro_catalog[op_u], operands
+                ):
+                    _add(target)
+                continue
+
+            for target in LightParser._targets_from_dispatch_style_macro(operands):
+                _add(target)
+            # EQU alias line: NAME EQU TARGET  -> follow TARGET in BFS
+            if op_u == "EQU":
+                alias_ops = LightParser._split_operands(operand_field)
+                if alias_ops:
+                    rhs = alias_ops[0].strip()
+                    if rhs != "*" and LightParser._looks_symbolic(rhs):
+                        _add(rhs)
 
         return targets
+
+    @staticmethod
+    def _find_macro_calls(
+        lines: list[str], macro_catalog: dict[str, MacroDefinition]
+    ) -> list[tuple[str, list[str]]]:
+        out: list[tuple[str, list[str]]] = []
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        macro_names = set(macro_catalog.keys())
+        for line in lines:
+            if line.startswith("*"):
+                continue
+            label, opcode, operand_field = LightParser._split_statement(line)
+            if not opcode:
+                continue
+            # Skip macro prototype/header lines (label is a symbolic &-parameter).
+            # These live inside the MACRO…MEND block itself and are not call sites.
+            if label.startswith("&"):
+                continue
+            op_u = opcode.upper()
+            if op_u not in macro_names:
+                continue
+            operands = LightParser._split_operands(operand_field)
+            targets = LightParser._targets_from_known_macro_call(
+                macro_catalog[op_u], operands
+            )
+            key = (op_u, tuple(targets))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((op_u, targets))
+        return out
+
+    @staticmethod
+    def _find_calls_ordered(
+        lines: list[str],
+        macro_catalog: dict[str, MacroDefinition],
+        parent_name: str = "",
+    ) -> list[dict]:
+        """Return all call events for *lines* in source-line order.
+
+        Each event is a dict with:
+          ``kind``    – ``"macro"`` or ``"direct"``
+          ``name``    – macro or target name (upper-cased)
+          ``targets`` – list of callee names (macro events only)
+
+        This is the single-pass replacement for calling :meth:`_find_macro_calls`
+        and :meth:`_find_go_targets` separately so that the resulting
+        :attr:`flow` list preserves the actual call sequence from the source.
+        """
+        macro_names = set(macro_catalog.keys())
+        seen_macro_keys: set[tuple[str, tuple[str, ...]]] = set()
+        seen_direct: set[str] = set()
+        result: list[dict] = []
+
+        def _emit_direct(name: str) -> None:
+            n = name.upper()
+            if n not in seen_direct:
+                seen_direct.add(n)
+                result.append({"kind": "direct", "name": n})
+
+        for line in lines:
+            if line.startswith("*"):
+                continue
+
+            # GO / GOIF / GOIFNOT — direct target
+            m = _GO_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # L Rx,=V(NAME) / L Rx,=A(NAME) — direct target
+            m = _V_LINK_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # Plain L <name> — direct target (no register, no comma)
+            m = _LINK_RE.match(line)
+            if m and not _REGISTER_RE.match(m.group(1)):
+                _emit_direct(m.group(1))
+                continue
+            m = _LOAD_EP_RE.match(line)
+            if m:
+                _emit_direct(m.group(1))
+                continue
+
+            # Parse statement for opcode-based call detection
+            label, opcode, operand_field = LightParser._split_statement(line)
+            if not opcode:
+                continue
+            # Skip macro prototype/header lines inside MACRO…MEND blocks.
+            if label.startswith("&"):
+                continue
+
+            op_u = opcode.upper()
+            operands = LightParser._split_operands(operand_field)
+
+            # Known macro invocation (never self-referencing)
+            if op_u in macro_names and op_u != parent_name.upper():
+                targets = LightParser._targets_from_known_macro_call(
+                    macro_catalog[op_u], operands
+                )
+                key = (op_u, tuple(targets))
+                if key not in seen_macro_keys:
+                    seen_macro_keys.add(key)
+                    result.append({"kind": "macro", "name": op_u, "targets": targets})
+                continue
+
+            # COPY directive — include the named copybook as a chunk in the flow.
+            # Pattern: (spaces) COPY  BOOKNAME
+            if op_u == "COPY" and operands:
+                cb = operands[0].strip().upper()
+                if cb and re.match(r"^[A-Z@#$][A-Z0-9@#$]{0,11}$", cb):
+                    _emit_direct(cb)
+                continue
+
+            # Generic dispatch-style table entry (num,num,symbol,num)
+            for t in LightParser._targets_from_dispatch_style_macro(operands):
+                _emit_direct(t)
+
+            # EQU alias line: NAME EQU TARGET  — follow TARGET in BFS
+            if op_u == "EQU" and operands:
+                rhs = operands[0].strip()
+                if rhs != "*" and LightParser._looks_symbolic(rhs):
+                    _emit_direct(rhs)
+
+        return result
+
+    @staticmethod
+    def _split_statement(line: str) -> tuple[str, str, str]:
+        text = line.rstrip("\n")
+        if not text or text.lstrip().startswith("*"):
+            return "", "", ""
+        body = text.split("*", 1)[0].rstrip()
+        if not body:
+            return "", "", ""
+        parts = body.split()
+        if not parts:
+            return "", "", ""
+        if text and text[0].isspace():
+            opcode = parts[0]
+            operands = body.split(opcode, 1)[1].strip() if len(parts) > 1 else ""
+            return "", opcode, operands
+        if len(parts) == 1:
+            tok = parts[0]
+            if tok.upper() in _COL1_OPCODE_HINTS:
+                return "", tok, ""
+            return tok, "", ""
+        if parts[0].upper() in _COL1_OPCODE_HINTS:
+            opcode = parts[0]
+            operands = body.split(opcode, 1)[1].strip() if len(parts) > 1 else ""
+            return "", opcode, operands
+        label = parts[0]
+        opcode = parts[1]
+        pos = body.find(opcode)
+        operands = body[pos + len(opcode):].strip() if pos >= 0 else ""
+        return label, opcode, operands
+
+    @staticmethod
+    def _split_operands(operand_text: str) -> list[str]:
+        if not operand_text:
+            return []
+        out: list[str] = []
+        cur: list[str] = []
+        depth = 0
+        quote: str | None = None
+        for ch in operand_text:
+            if quote:
+                cur.append(ch)
+                if ch == quote:
+                    quote = None
+                continue
+            if ch in ("'", '"'):
+                quote = ch
+                cur.append(ch)
+                continue
+            if ch == "(":
+                depth += 1
+                cur.append(ch)
+                continue
+            if ch == ")":
+                depth = max(0, depth - 1)
+                cur.append(ch)
+                continue
+            if ch == "," and depth == 0:
+                out.append("".join(cur).strip())
+                cur = []
+                continue
+            cur.append(ch)
+        if cur:
+            out.append("".join(cur).strip())
+        return [o for o in out if o]
+
+    @staticmethod
+    def _looks_symbolic(value: str) -> bool:
+        v = value.strip().upper()
+        if not v:
+            return False
+        if v.startswith("&"):
+            return False
+        if v.startswith("="):
+            return False
+        if "(" in v or ")" in v:
+            return False
+        if _REGISTER_RE.match(v):
+            return False
+        if _DISPATCH_STYLE_RE.match(v):
+            return False
+        return bool(re.fullmatch(r"[A-Z@#$][A-Z0-9@#$]{0,7}", v))
+
+    @staticmethod
+    def _targets_from_known_macro_call(
+        macro: MacroDefinition, operands: list[str]
+    ) -> list[str]:
+        # Prefer explicit call-site parameter usage learned from macro body.
+        by_param: dict[str, str] = {}
+        for i, p in enumerate(macro.parameters):
+            if i < len(operands):
+                by_param[p.upper()] = operands[i].strip()
+        out: list[str] = []
+        for param in macro.call_params:
+            actual = by_param.get(param.upper(), "")
+            if LightParser._looks_symbolic(actual):
+                out.append(actual.upper())
+        if out:
+            return list(dict.fromkeys(out))
+
+        # Fallback for macros with no explicit GO/L pattern in body:
+        # accept every symbolic operand from the call.
+        generic = [o.upper() for o in operands if LightParser._looks_symbolic(o)]
+        return list(dict.fromkeys(generic))
+
+    @staticmethod
+    def _targets_from_dispatch_style_macro(operands: list[str]) -> list[str]:
+        # Generic fallback for macro-like table entries:
+        # <num>,<num>,<symbol>,<num>  => treat 3rd arg as callee.
+        if len(operands) < 4:
+            return []
+        first, second, third, fourth = [o.strip() for o in operands[:4]]
+        if not first.isdigit() or not second.isdigit() or not fourth.isdigit():
+            return []
+        if not LightParser._looks_symbolic(third):
+            return []
+        return [third.upper()]
 
     def _search_files(self) -> Iterator[Path]:
         """Yield driver file first, then every file under *deps_dir*."""
@@ -249,11 +709,222 @@ class LightParser:
                 if f.is_file():
                     yield f
 
+    def _discover_macros(self) -> dict[str, MacroDefinition]:
+        macros: dict[str, MacroDefinition] = {}
+        for src in self._search_files():
+            try:
+                lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                if not _MACRO_START_RE.match(line):
+                    i += 1
+                    continue
+                mend_idx = None
+                for k in range(i + 1, len(lines)):
+                    if _MEND_RE.match(lines[k]):
+                        mend_idx = k
+                        break
+                # Not a macro definition block (likely an invocation-like line).
+                if mend_idx is None:
+                    i += 1
+                    continue
+                header_i = i
+                name = ""
+                operands = ""
+
+                inline_name, inline_operands = self._parse_macro_header(line)
+                if inline_name:
+                    name = inline_name
+                    operands = inline_operands
+                else:
+                    header_i = i + 1
+                    while header_i < len(lines):
+                        hdr = lines[header_i]
+                        if hdr.strip() and not hdr.lstrip().startswith("*"):
+                            break
+                        header_i += 1
+                    if header_i >= len(lines):
+                        break
+                    next_name, next_operands = self._parse_macro_header(lines[header_i])
+                    if next_name:
+                        name = next_name
+                        operands = next_operands
+                if not name:
+                    i = header_i + 1
+                    continue
+                params = [
+                    p.split("=", 1)[0].strip().upper()
+                    for p in self._split_operands(operands)
+                    if p.strip().startswith("&")
+                ]
+                block = lines[i: header_i + 1]
+                j = header_i + 1
+                while j < len(lines):
+                    block.append(lines[j])
+                    if _MEND_RE.match(lines[j]):
+                        break
+                    j += 1
+                call_params = self._infer_macro_call_params(block, params)
+                if name not in macros:
+                    macros[name] = MacroDefinition(
+                        name=name,
+                        source_file=str(src),
+                        header_line=lines[header_i],
+                        parameters=params,
+                        lines=block,
+                        call_params=call_params,
+                    )
+                i = j + 1
+        return macros
+
+    def _parse_macro_header(self, line: str) -> tuple[str, str]:
+        """Return (macro_name, operands_text) from a macro prototype/header line."""
+        raw = line.rstrip()
+        if not raw or raw.lstrip().startswith("*"):
+            return "", ""
+        header_body = raw.strip()
+        parts = header_body.split()
+        if not parts:
+            return "", ""
+
+        name_token = ""
+
+        # Form A: line contains the MACRO keyword and then name, e.g.
+        #   MACRO .* OPEN &P1,&P2
+        #   MACRO &LBL OPEN &P1,&P2
+        macro_idx = -1
+        for idx, tok in enumerate(parts):
+            if tok.upper() == "MACRO":
+                macro_idx = idx
+                break
+        if macro_idx >= 0:
+            for tok in parts[macro_idx + 1:]:
+                t = tok.strip().rstrip(",")
+                if not t or t.startswith("&"):
+                    continue
+                if re.fullmatch(r"[A-Za-z@#$][A-Za-z0-9@#$]{0,7}", t):
+                    name_token = t
+                    break
+        else:
+            # Form B: classic prototype after a standalone MACRO line:
+            #   &LABEL OPEN &P1,&P2
+            #   OPEN &P1,&P2
+            if parts[0].startswith("&") and len(parts) >= 2:
+                cand = parts[1]
+            else:
+                cand = parts[0]
+            if re.fullmatch(r"[A-Za-z@#$][A-Za-z0-9@#$]{0,7}", cand):
+                name_token = cand
+
+        if not name_token:
+            return "", ""
+
+        name = name_token.strip().upper()
+        if name_token in header_body:
+            operands = header_body.split(name_token, 1)[1].strip()
+        else:
+            operands = ""
+        return name, operands
+
+    def _discover_equ_aliases(self) -> dict[str, str]:
+        aliases: dict[str, str] = {}
+        for src in self._search_files():
+            try:
+                lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                label, opcode, operands = self._split_statement(line)
+                if not label or opcode.upper() != "EQU":
+                    continue
+                first = self._split_operands(operands)
+                if not first:
+                    continue
+                rhs = first[0].strip().upper()
+                if rhs == "*":
+                    continue
+                if not self._looks_symbolic(rhs):
+                    continue
+                aliases[label.upper()] = rhs
+        return aliases
+
+    def _resolve_equ_alias(self, name: str) -> str:
+        cur = name.upper()
+        seen: set[str] = set()
+        while cur in self.equ_aliases and cur not in seen:
+            seen.add(cur)
+            nxt = self.equ_aliases[cur]
+            if not nxt:
+                break
+            cur = nxt
+        return cur
+
+    def _infer_macro_call_params(
+        self, macro_lines: list[str], formal_params: list[str]
+    ) -> list[str]:
+        wanted: list[str] = []
+        formals = {p.upper() for p in formal_params}
+        go_param_re = re.compile(
+            r"^(?:[A-Za-z@#$]\S{0,7}\s+|\s+)GO(?:IF(?:NOT)?)?\s+(&[A-Za-z0-9@#$]+)",
+            re.IGNORECASE,
+        )
+        v_param_re = re.compile(
+            r"^\s+L\s+\w+\s*,\s*=V\((&[A-Za-z0-9@#$]+)\)",
+            re.IGNORECASE,
+        )
+        l_param_re = re.compile(
+            r"^\s+L\s+(&[A-Za-z0-9@#$]+)\s*(?:\*.*)?$",
+            re.IGNORECASE,
+        )
+        load_param_re = re.compile(
+            r"^\s*(?:[A-Za-z@#$]\S{0,7}\s+)?LOAD\b.*\bEP\s*=\s*\(?\s*(&[A-Za-z0-9@#$]+)\s*\)?",
+            re.IGNORECASE,
+        )
+        for line in macro_lines:
+            m = go_param_re.match(line)
+            if m:
+                key = m.group(1).strip().upper()
+                if key in formals and key not in wanted:
+                    wanted.append(key)
+            m = v_param_re.match(line)
+            if m:
+                key = m.group(1).strip().upper()
+                if key in formals and key not in wanted:
+                    wanted.append(key)
+            m = l_param_re.match(line)
+            if m:
+                key = m.group(1).strip().upper()
+                if key in formals and key not in wanted:
+                    wanted.append(key)
+            m = load_param_re.match(line)
+            if m:
+                key = m.group(1).strip().upper()
+                if key in formals and key not in wanted:
+                    wanted.append(key)
+        return wanted
+
+    def _write_macro_chunks(self) -> None:
+        for macro in self.macros.values():
+            self.chunk_kinds[macro.name] = "macro"
+            self._save_chunk(macro.name, macro.lines, kind="macro")
+
+    def _write_macro_catalog(self) -> None:
+        payload = {
+            "macro_count": len(self.macros),
+            "macros": [m.to_dict() for m in self.macros.values()],
+        }
+        (self.output_dir / "macros.json").write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
+
     def _find_subroutine(self, name: str) -> list[str] | None:
         """Search all source files for a ``<name>  IN … OUT`` block.
 
-        If no IN/OUT block is found, falls back to a ``<name>  EQU  *``
-        table block (common for translation/dispatch tables).  The EQU *
+        If no IN/OUT block is found, falls back to a ``<name>  EQU ...``
+        table/anchor block (common for dispatch tables).  The EQU block
         block ends immediately before the next labeled statement (a line
         whose first character is not a space, tab, or ``*``).
 
@@ -261,9 +932,9 @@ class LightParser:
         """
         in_re = _in_pattern(name)
         equ_re = re.compile(
-            _EQU_STAR_RE_TEMPLATE.format(name=re.escape(name)), re.IGNORECASE
+            rf"^{re.escape(name)}\s+EQU\b", re.IGNORECASE
         )
-        equ_candidate: list[str] | None = None   # best EQU * match seen so far
+        equ_candidate: list[str] | None = None   # best EQU match seen so far
 
         for f in self._search_files():
             try:
@@ -285,21 +956,130 @@ class LightParser:
                             return block
                     return block                  # EOF without OUT or next IN
 
-                # Secondary: EQU * table (kept as candidate; IN/OUT wins)
+                # Secondary: EQU anchor block (kept as candidate; IN/OUT wins)
                 if equ_candidate is None and equ_re.match(line):
+                    _, op, operand_field = self._split_statement(line)
+                    ops = self._split_operands(operand_field) if op.upper() == "EQU" else []
+                    rhs = ops[0].strip().upper() if ops else ""
+                    if rhs and rhs != "*":
+                        # For alias-style EQU, capture only the EQU line.
+                        equ_candidate = [line]
+                        continue
                     block = [line]
                     for j in range(i + 1, len(all_lines)):
                         next_line = all_lines[j]
-                        # A non-blank label in column 1 starts the next statement
-                        if next_line and next_line[0] not in (" ", "\t", "*"):
-                            break
                         block.append(next_line)
+                        # EJECT is the natural page/section separator in HLASM
+                        # source and marks the end of a data table.
+                        if _EJECT_RE.match(next_line):
+                            break
                     equ_candidate = block
 
         return equ_candidate  # None if neither form was found
 
-    def _save_chunk(self, name: str, lines: list[str]) -> None:
+    def _resolve_target(
+        self,
+        target: str,
+        visited: set[str],
+        queue: list[tuple[str, list[str]]],
+    ) -> None:
+        if target in visited:
+            return
+        visited.add(target)
+        if target in self.macros:
+            sub_lines = self.macros[target].lines
+            self.node_tags[target] = ["macro"]
+            self.chunk_kinds[target] = "macro"
+        else:
+            # Resolution order:
+            #   1. IN / OUT block  or  EQU * table  (existing subroutine patterns)
+            #   2. <name> CSECT … DS 0F  (control-section definition)
+            #   3. Copybook file  (COPY <name> targets resolved to a deps file)
+            sub_lines = self._find_subroutine(target)
+            if sub_lines is not None:
+                self.chunk_kinds[target] = "sub"
+            else:
+                sub_lines = self._find_csect_block(target)
+                if sub_lines is not None:
+                    self.chunk_kinds[target] = "csect"
+                    self.node_tags[target] = ["csect"]
+                else:
+                    sub_lines = self._find_copybook_file(target)
+                    if sub_lines is not None:
+                        self.chunk_kinds[target] = "copybook"
+                        self.node_tags[target] = ["copybook"]
+                    else:
+                        self.chunk_kinds[target] = "sub"
+        self.flow.setdefault(target, [])
+        if sub_lines is None:
+            self.missing.append(target)
+            return
+        self._save_chunk(target, sub_lines, kind=self.chunk_kinds.get(target, "sub"))
+        queue.append((target, sub_lines))
+
+    def _find_csect_block(self, name: str) -> list[str] | None:
+        """Search all source files for a ``<name> CSECT`` definition block.
+
+        Captures from the CSECT statement until the first of:
+        * A ``DS 0F / 0H / 0D / 0B`` alignment directive (included, then stop)
+        * The start of a *different* CSECT (excluded)
+        * An ``END`` statement (included, then stop)
+        * An ``EJECT`` directive (excluded)
+        * End of file
+
+        Returns the captured lines, or ``None`` if *name* has no CSECT.
+        """
+        csect_re = re.compile(rf"^{re.escape(name)}\s+CSECT\b", re.IGNORECASE)
+        for f in self._search_files():
+            try:
+                all_lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for i, line in enumerate(all_lines):
+                if not csect_re.match(line):
+                    continue
+                block = [line]
+                for j in range(i + 1, len(all_lines)):
+                    next_line = all_lines[j]
+                    # DS alignment directive → include and stop
+                    if _DS_ALIGN_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # Another CSECT starts → stop before it
+                    if _CSECT_RE.match(next_line) and not csect_re.match(next_line):
+                        break
+                    # END statement → include and stop
+                    if _END_RE.match(next_line):
+                        block.append(next_line)
+                        break
+                    # EJECT → natural page break, stop before it
+                    if _EJECT_RE.match(next_line):
+                        break
+                    block.append(next_line)
+                return block
+        return None
+
+    def _find_copybook_file(self, name: str) -> list[str] | None:
+        """Search *deps_dir* for a copybook file whose stem matches *name*.
+
+        Looks recursively under *deps_dir* for any file (regardless of
+        extension) whose base name without extension matches *name*
+        case-insensitively.  Returns the full file content as a list of
+        lines, or ``None`` if no matching file is found.
+        """
+        if not self.deps_dir or not self.deps_dir.is_dir():
+            return None
+        name_upper = name.upper()
+        for f in sorted(self.deps_dir.rglob("*")):
+            if f.is_file() and f.stem.upper() == name_upper:
+                try:
+                    return f.read_text(encoding="utf-8", errors="replace").splitlines()
+                except OSError:
+                    continue
+        return None
+
+    def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
-        (self.output_dir / f"{name}.txt").write_text(
+        (self.output_dir / f"{name}_{kind}.txt").write_text(
             "\n".join(lines) + "\n", encoding="utf-8"
         )
