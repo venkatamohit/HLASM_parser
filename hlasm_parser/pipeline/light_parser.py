@@ -476,6 +476,15 @@ class LightParser:
                 if not _MACRO_START_RE.match(line):
                     i += 1
                     continue
+                mend_idx = None
+                for k in range(i + 1, len(lines)):
+                    if _MEND_RE.match(lines[k]):
+                        mend_idx = k
+                        break
+                # Not a macro definition block (likely an invocation-like line).
+                if mend_idx is None:
+                    i += 1
+                    continue
                 header_i = i
                 name = ""
                 operands = ""
