@@ -620,6 +620,89 @@ class TestLinkCallDetection:
         assert "NOGOSUB" in lp.missing
         assert "NOLSUB" in lp.missing
 
+    # ── L Rx,=V(SUBNAME) – V-type address constant ───────────────────────────
+
+    def test_v_constant_found(self):
+        lines = ["         L     R15,=V(EXTSUB)"]
+        assert "EXTSUB" in LightParser._find_go_targets(lines)
+
+    def test_v_constant_with_r14(self):
+        lines = ["         L     R14,=V(MYMOD)"]
+        assert "MYMOD" in LightParser._find_go_targets(lines)
+
+    def test_v_constant_case_insensitive(self):
+        lines = ["         l     r15,=v(extsub)"]
+        assert "EXTSUB" in LightParser._find_go_targets(lines)
+
+    def test_v_constant_name_uppercased(self):
+        lines = ["         L     R15,=V(extsub)"]
+        targets = LightParser._find_go_targets(lines)
+        assert "EXTSUB" in targets
+        assert "extsub" not in targets
+
+    def test_v_constant_with_spaces_around_comma(self):
+        lines = ["         L     R15 , =V(EXTSUB)"]
+        assert "EXTSUB" in LightParser._find_go_targets(lines)
+
+    def test_v_constant_not_confused_with_load(self):
+        """L R1,FIELD (no =V) must not match."""
+        lines = ["         L     R1,FIELD"]
+        assert "FIELD" not in LightParser._find_go_targets(lines)
+
+    def test_v_constant_and_go_in_same_block(self):
+        lines = [
+            "         GO    SUBA",
+            "         L     R15,=V(EXTSUB)",
+        ]
+        targets = LightParser._find_go_targets(lines)
+        assert "SUBA" in targets
+        assert "EXTSUB" in targets
+
+    def test_v_constant_deduplication(self):
+        lines = [
+            "         L     R15,=V(SAME)",
+            "         L     R14,=V(SAME)",
+        ]
+        assert LightParser._find_go_targets(lines).count("SAME") == 1
+
+    def test_v_constant_resolved_from_deps(self, tmp_path):
+        """L R15,=V(SUBD) → SUBD.txt created from deps/SUBD.asm."""
+        src = "PROG CSECT\n         L     R15,=V(SUBD)\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert (tmp_path / "out" / "SUBD.txt").exists()
+
+    def test_v_constant_in_flow(self, tmp_path):
+        src = "PROG CSECT\n         L     R15,=V(SUBD)\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "SUBD" in lp.flow["main"]
+
+    def test_v_constant_missing_tracked(self, tmp_path):
+        src = "PROG CSECT\n         L     R15,=V(GHOST)\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "GHOST" in lp.missing
+
+    def test_v_constant_recursive(self, tmp_path):
+        """=V(name) inside a resolved subroutine is followed transitively."""
+        sube_src = "SUBE     IN\n         MVI   0(13),X'01'\n         BR    14\n         OUT\n"
+        (tmp_path / "SUBE.asm").write_text(sube_src)
+        sub_src = "INNER    IN\n         L     R15,=V(SUBE)\n         BR    14\n         OUT\n"
+        (tmp_path / "INNER.asm").write_text(sub_src)
+        driver = tmp_path / "prog.asm"
+        driver.write_text("PROG CSECT\n         GO    INNER\n         BR    14\n")
+        lp = LightParser(driver_path=driver, deps_dir=tmp_path, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "SUBE" in lp.chunks
+        assert "SUBE" in lp.flow.get("INNER", [])
+
     # ── DOT / CFG output ─────────────────────────────────────────────────────
 
     def test_l_target_in_dot(self, tmp_path):

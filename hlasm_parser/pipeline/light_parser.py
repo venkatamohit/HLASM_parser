@@ -6,8 +6,8 @@ Flow
 1. Extract lines [start_line, end_line] from the driver file  →  ``main.txt``.
 2. Scan those lines for call instructions:
      * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
-     * ``L <name>``  where the operand is a plain identifier (no comma /
-       parenthesis), distinguishing it from the HLASM Load register instruction.
+     * ``L Rx,=V(name)``  V-type address constant (primary Link form).
+     * ``L <name>``  plain Link where the operand is a bare identifier.
 3. For each *name*, search the driver + every file under *deps_dir* for a
    block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
@@ -24,18 +24,20 @@ from typing import Iterator
 # GO / GOIF / GOIFNOT – first operand is always the target subroutine name
 _GO_RE = re.compile(r"\bGO(?:IF(?:NOT)?)?\s+(\w+)", re.IGNORECASE)
 
-# L <name> as a Link call.
-#   Requirements to avoid false-positives with the HLASM Load register opcode:
+# L Rx,=V(SUBNAME) – the primary Link form: load an external subroutine
+# address via a V-type address constant, e.g.  L     R15,=V(EXTSUB)
+_V_LINK_RE = re.compile(r"^\s+L\s+\w+\s*,\s*=V\((\w+)\)", re.IGNORECASE)
+
+# L <name> as a plain Link call (no register / no comma).
 #   • Leading whitespace  →  L is in opcode column, not label column.
 #   • Operand is a plain HLASM identifier (letters/digits/@/#/$, 1–8 chars).
-#   • Nothing else on the line except optional spaces and an inline comment
-#     (no comma or parenthesis, which would indicate a Load-register operand).
+#   • Nothing else on the line (no comma / parenthesis = not a Load-register).
 _LINK_RE = re.compile(
     r"^\s+L\s+([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*(?:\*.*)?$",
     re.IGNORECASE,
 )
 
-# Register aliases R0–R15 that would otherwise look like Link targets.
+# Register aliases R0–R15 that would otherwise look like plain Link targets.
 _REGISTER_RE = re.compile(r"^R(?:1[0-5]|[0-9])$", re.IGNORECASE)
 
 # Matches OUT in opcode position (with optional leading label or spaces)
@@ -196,7 +198,12 @@ class LightParser:
             # GO / GOIF / GOIFNOT
             for m in _GO_RE.finditer(line):
                 _add(m.group(1))
-            # L <name> as Link (not Load-register)
+            # L Rx,=V(SUBNAME) – V-type address constant Link (primary form)
+            m = _V_LINK_RE.match(line)
+            if m:
+                _add(m.group(1))
+                continue   # already handled this line
+            # L <name> – plain Link (no register, no comma)
             m = _LINK_RE.match(line)
             if m and not _REGISTER_RE.match(m.group(1)):
                 _add(m.group(1))
