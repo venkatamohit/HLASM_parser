@@ -128,6 +128,8 @@ class LightParser:
         self.missing: list[str] = []
         # macro name -> macro definition
         self.macros: dict[str, MacroDefinition] = {}
+        # symbol aliases from EQU (e.g. VALUE EQU TCR051)
+        self.equ_aliases: dict[str, str] = {}
         # nodes that represent macro chunks in the graph
         self.macro_nodes: set[str] = set()
         # node -> tags for serialised graph output
@@ -147,6 +149,7 @@ class LightParser:
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.macros = self._discover_macros()
+        self.equ_aliases = self._discover_equ_aliases()
         self.macro_nodes = set(self.macros.keys())
         self._write_macro_chunks()
 
@@ -169,6 +172,7 @@ class LightParser:
                     self._save_chunk(macro_name, self.macros[macro_name].lines)
                     queue.append((macro_name, self.macros[macro_name].lines))
                 for target in macro_targets:
+                    target = self._resolve_equ_alias(target)
                     if target not in self.flow[macro_name]:
                         self.flow[macro_name].append(target)
                     self._resolve_target(target, visited, queue)
@@ -176,6 +180,7 @@ class LightParser:
             for target in self._find_go_targets(
                 lines, self.macros, include_known_macros=False
             ):
+                target = self._resolve_equ_alias(target)
                 if target not in self.flow[parent]:
                     self.flow[parent].append(target)
                 self._resolve_target(target, visited, queue)
@@ -478,12 +483,26 @@ class LightParser:
                 if header_i >= len(lines):
                     break
                 header_body = lines[header_i].split("*", 1)[0].strip()
-                header_parts = header_body.split(None, 1)
+                header_parts = header_body.split()
                 if not header_parts:
                     i = header_i + 1
                     continue
-                name = header_parts[0].strip().upper()
-                operands = header_parts[1].strip() if len(header_parts) > 1 else ""
+                # Support macro prototypes with optional symbolic label variable:
+                #   &LABEL MACRONAME &P1,&P2
+                # as well as the simple:
+                #   MACRONAME &P1,&P2
+                if header_parts[0].startswith("&") and len(header_parts) >= 2:
+                    name_token = header_parts[1]
+                else:
+                    name_token = header_parts[0]
+                name = name_token.strip().upper()
+                if name.startswith("&"):
+                    i = header_i + 1
+                    continue
+                if name_token in header_body:
+                    operands = header_body.split(name_token, 1)[1].strip()
+                else:
+                    operands = ""
                 if not name:
                     i = header_i + 1
                     continue
@@ -511,6 +530,39 @@ class LightParser:
                     )
                 i = j + 1
         return macros
+
+    def _discover_equ_aliases(self) -> dict[str, str]:
+        aliases: dict[str, str] = {}
+        for src in self._search_files():
+            try:
+                lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                label, opcode, operands = self._split_statement(line)
+                if not label or opcode.upper() != "EQU":
+                    continue
+                first = self._split_operands(operands)
+                if not first:
+                    continue
+                rhs = first[0].strip().upper()
+                if rhs == "*":
+                    continue
+                if not self._looks_symbolic(rhs):
+                    continue
+                aliases[label.upper()] = rhs
+        return aliases
+
+    def _resolve_equ_alias(self, name: str) -> str:
+        cur = name.upper()
+        seen: set[str] = set()
+        while cur in self.equ_aliases and cur not in seen:
+            seen.add(cur)
+            nxt = self.equ_aliases[cur]
+            if not nxt:
+                break
+            cur = nxt
+        return cur
 
     def _infer_macro_call_params(
         self, macro_lines: list[str], formal_params: list[str]
@@ -616,6 +668,7 @@ class LightParser:
         visited: set[str],
         queue: list[tuple[str, list[str]]],
     ) -> None:
+        target = self._resolve_equ_alias(target)
         if target in visited:
             return
         visited.add(target)
