@@ -1,10 +1,13 @@
 """Light Parser – extract a line-range "main" block and recursively resolve
-GO subroutine targets via IN / OUT markers.
+GO and L (Link) subroutine targets via IN / OUT markers.
 
 Flow
 ----
 1. Extract lines [start_line, end_line] from the driver file  →  ``main.txt``.
-2. Scan those lines for ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``.
+2. Scan those lines for call instructions:
+     * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
+     * ``L <name>``  where the operand is a plain identifier (no comma /
+       parenthesis), distinguishing it from the HLASM Load register instruction.
 3. For each *name*, search the driver + every file under *deps_dir* for a
    block delimited by ``<name>  IN`` … ``OUT`` (or the next ``IN`` marker).
 4. Save each found block as ``<name>.txt`` in *output_dir* and recurse (BFS).
@@ -21,6 +24,20 @@ from typing import Iterator
 # GO / GOIF / GOIFNOT – first operand is always the target subroutine name
 _GO_RE = re.compile(r"\bGO(?:IF(?:NOT)?)?\s+(\w+)", re.IGNORECASE)
 
+# L <name> as a Link call.
+#   Requirements to avoid false-positives with the HLASM Load register opcode:
+#   • Leading whitespace  →  L is in opcode column, not label column.
+#   • Operand is a plain HLASM identifier (letters/digits/@/#/$, 1–8 chars).
+#   • Nothing else on the line except optional spaces and an inline comment
+#     (no comma or parenthesis, which would indicate a Load-register operand).
+_LINK_RE = re.compile(
+    r"^\s+L\s+([A-Za-z@#$][A-Za-z0-9@#$]{0,7})\s*(?:\*.*)?$",
+    re.IGNORECASE,
+)
+
+# Register aliases R0–R15 that would otherwise look like Link targets.
+_REGISTER_RE = re.compile(r"^R(?:1[0-5]|[0-9])$", re.IGNORECASE)
+
 # Matches OUT in opcode position (with optional leading label or spaces)
 _OUT_RE = re.compile(r"^\s*(?:\w+\s+)?OUT\b", re.IGNORECASE)
 
@@ -34,7 +51,7 @@ def _in_pattern(name: str) -> re.Pattern[str]:
 
 
 class LightParser:
-    """Lightweight subroutine extractor driven by GO / IN / OUT markers.
+    """Lightweight subroutine extractor driven by GO / L / IN / OUT markers.
 
     Parameters
     ----------
@@ -69,7 +86,7 @@ class LightParser:
     # ------------------------------------------------------------------
 
     def run(self, start_line: int, end_line: int) -> None:
-        """Extract the main block then recursively resolve all GO targets.
+        """Extract the main block then recursively resolve all GO and L targets.
 
         Parameters
         ----------
@@ -155,17 +172,35 @@ class LightParser:
 
     @staticmethod
     def _find_go_targets(lines: list[str]) -> list[str]:
-        """Return subroutine names called via GO in *lines* (order preserved)."""
+        """Return subroutine names called via GO or L in *lines* (order preserved).
+
+        Handles:
+        * ``GO <name>`` / ``GOIF <name>`` / ``GOIFNOT <name>``
+        * ``L <name>``  where the operand is a plain identifier (Link call),
+          distinguished from the Load-register opcode by the absence of a
+          comma or parenthesis in the operand field.  Register aliases R0–R15
+          are excluded to avoid false positives.
+        """
         seen: set[str] = set()
         targets: list[str] = []
+
+        def _add(name: str) -> None:
+            name = name.upper()
+            if name not in seen:
+                seen.add(name)
+                targets.append(name)
+
         for line in lines:
             if line.startswith("*"):   # full-line comment
                 continue
+            # GO / GOIF / GOIFNOT
             for m in _GO_RE.finditer(line):
-                name = m.group(1).upper()
-                if name not in seen:
-                    seen.add(name)
-                    targets.append(name)
+                _add(m.group(1))
+            # L <name> as Link (not Load-register)
+            m = _LINK_RE.match(line)
+            if m and not _REGISTER_RE.match(m.group(1)):
+                _add(m.group(1))
+
         return targets
 
     def _search_files(self) -> Iterator[Path]:

@@ -470,3 +470,173 @@ class TestLightParserCli:
         assert (out / "cfg.mmd").exists()
         content = (out / "cfg.mmd").read_text()
         assert "flowchart TD" in content
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# L (Link) call detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestLinkCallDetection:
+    """Tests for L <name> Link calls alongside GO calls in the same graph."""
+
+    # ── _find_go_targets – L detection unit tests ─────────────────────────
+
+    def test_l_link_found(self):
+        lines = ["         L     MYLIB"]
+        assert "MYLIB" in LightParser._find_go_targets(lines)
+
+    def test_l_load_register_not_matched(self):
+        """L R1,FIELD is a Load, not a Link – must be ignored."""
+        lines = ["         L     R1,MYFIELD"]
+        assert "R1" not in LightParser._find_go_targets(lines)
+        assert "MYFIELD" not in LightParser._find_go_targets(lines)
+
+    def test_l_load_with_base_displacement_not_matched(self):
+        lines = ["         L     R2,0(R1)"]
+        assert LightParser._find_go_targets(lines) == []
+
+    def test_l_register_alias_excluded(self):
+        """L R15 looks like a Link but R0-R15 are registers – must be skipped."""
+        for reg in ("R0", "R1", "R9", "R10", "R15"):
+            lines = [f"         L     {reg}"]
+            assert reg.upper() not in LightParser._find_go_targets(lines), reg
+
+    def test_l_in_label_column_not_matched(self):
+        """L in the label column (no leading spaces) is not a Link opcode."""
+        lines = ["L        DS    CL8"]
+        assert LightParser._find_go_targets(lines) == []
+
+    def test_l_with_inline_comment(self):
+        lines = ["         L     MYSUB          * call MYSUB"]
+        assert "MYSUB" in LightParser._find_go_targets(lines)
+
+    def test_l_and_go_both_found_in_same_block(self):
+        lines = [
+            "         GO    SUBA",
+            "         L     SUBD",
+            "         GOIF  SUBB",
+        ]
+        targets = LightParser._find_go_targets(lines)
+        assert "SUBA" in targets
+        assert "SUBD" in targets
+        assert "SUBB" in targets
+
+    def test_l_order_preserved_with_go(self):
+        lines = [
+            "         L     FIRST",
+            "         GO    SECOND",
+        ]
+        targets = LightParser._find_go_targets(lines)
+        assert targets.index("FIRST") < targets.index("SECOND")
+
+    def test_l_deduplicated(self):
+        lines = ["         L     SAME", "         L     SAME"]
+        assert LightParser._find_go_targets(lines).count("SAME") == 1
+
+    # ── Integration: L target resolved from deps dir ───────────────────────
+
+    def test_l_target_resolved_from_deps(self, tmp_path):
+        """L SUBD in main flow → SUBD.txt created from deps/SUBD.asm."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 L     SUBD
+                 BR    14
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert (tmp_path / "out" / "SUBD.txt").exists()
+
+    def test_l_target_in_flow(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 L     SUBD
+                 BR    14
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert "SUBD" in lp.flow["main"]
+
+    def test_l_and_go_share_same_graph(self, tmp_path):
+        """GO and L targets both appear as children in the same flow node."""
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 GO    SUBA
+                 L     SUBD
+                 BR    14
+        """)
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        children = lp.flow["main"]
+        assert "SUBA" in children
+        assert "SUBD" in children
+
+    def test_l_inside_subroutine_resolved_recursively(self, tmp_path):
+        """L call inside a GO-resolved subroutine must be followed transitively."""
+        sube_src = textwrap.dedent("""\
+        SUBE     IN
+                 MVI   0(13),X'01'
+                 BR    14
+                 OUT
+        """)
+        (tmp_path / "SUBE.asm").write_text(sube_src)
+        sub_src = textwrap.dedent("""\
+        INNER    IN
+                 L     SUBE
+                 BR    14
+                 OUT
+        """)
+        (tmp_path / "INNER.asm").write_text(sub_src)
+        driver = tmp_path / "prog.asm"
+        driver.write_text("PROG CSECT\n         GO    INNER\n         BR    14\n")
+        lp = LightParser(driver_path=driver, deps_dir=tmp_path, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "INNER" in lp.chunks
+        assert "SUBE" in lp.chunks
+        assert "SUBE" in lp.flow.get("INNER", [])
+
+    def test_l_target_missing_tracked(self, tmp_path):
+        src = "PROG CSECT\n         L     GHOST\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        assert "GHOST" in lp.missing
+
+    def test_l_and_go_missing_both_tracked(self, tmp_path):
+        src = "PROG CSECT\n         GO    NOGOSUB\n         L     NOLSUB\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
+        lp.run(1, 4)
+        assert "NOGOSUB" in lp.missing
+        assert "NOLSUB" in lp.missing
+
+    # ── DOT / CFG output ─────────────────────────────────────────────────────
+
+    def test_l_target_in_dot(self, tmp_path):
+        src = "PROG CSECT\n         L     SUBD\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        dot = lp.to_dot()
+        assert '"SUBD"' in dot
+        assert '"main" -> "SUBD"' in dot
+
+    def test_l_target_in_mermaid(self, tmp_path):
+        src = "PROG CSECT\n         L     SUBD\n         BR    14\n"
+        driver = tmp_path / "prog.asm"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
+        lp.run(1, 3)
+        mmd = lp.to_mermaid()
+        assert "main --> SUBD" in mmd
