@@ -1119,7 +1119,9 @@ class TestMacroHeaderAndEquAliasResolution:
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
         lp.run(1, 3)
 
-        assert "TCR051" in lp.flow["main"]
+        assert "VALPTR" in lp.flow["main"]
+        assert "TCR051" in lp.flow.get("VALPTR", [])
+        assert "VALPTR" in lp.chunks
         assert "TCR051" in lp.chunks
         assert "VALPTR" not in lp.missing
 
@@ -1140,8 +1142,32 @@ class TestMacroHeaderAndEquAliasResolution:
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
         lp.run(1, 3)
 
-        assert "TCR051" in lp.flow["main"]
+        assert "VALA" in lp.flow["main"]
+        assert "VALB" in lp.flow.get("VALA", [])
+        assert "TCR051" in lp.flow.get("VALB", [])
+        assert "VALA" in lp.chunks
+        assert "VALB" in lp.chunks
         assert "TCR051" in lp.chunks
+
+    def test_alias_equ_chunk_is_single_line_only(self, tmp_path):
+        src = textwrap.dedent("""\
+        PROG     CSECT
+                 L     R15,=V(VALPTR)
+                 BR    14
+        VALPTR   EQU   TCR051
+                 MACRO 12,0,ROUTINE1,1223
+                 EJECT
+        TCR051   IN
+                 BR    14
+                 OUT
+        """)
+        driver = tmp_path / "prog.asm"
+        out = tmp_path / "out"
+        driver.write_text(src)
+        lp = LightParser(driver_path=driver, deps_dir=None, output_dir=out)
+        lp.run(1, 3)
+
+        assert lp.chunks.get("VALPTR") == ["VALPTR   EQU   TCR051"]
 
     def test_inline_macro_header_form_macro_dotstar_name(self, tmp_path):
         src = textwrap.dedent("""\
