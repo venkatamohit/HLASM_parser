@@ -2616,3 +2616,181 @@ class TestInlineCommentTerminator:
         lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
         lp.run(1, src.count("\n"))
         assert "CBNAME" in lp.chunks
+
+
+# ---------------------------------------------------------------------------
+# TestClassifyFileContent
+# Verifies that _classify_file_content correctly identifies the kind of an
+# external file (macro / sub / asmprogram / copybook) and that _resolve_target
+# uses the classification to name chunk files and set node_tags correctly.
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyFileContent:
+    """_classify_file_content content-inspection tests and integration."""
+
+    # ── unit: _classify_file_content ─────────────────────────────────────────
+
+    def test_macro_detected_blank_label(self):
+        """MACRO opcode with blank label is classified as macro."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["         MACRO", "         MYMAC &P1", "         MEND"]
+        assert LightParser._classify_file_content("MYMAC", lines) == "macro"
+
+    def test_macro_detected_labelled(self):
+        """MACRO opcode with a label is also classified as macro."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["MYMAC    MACRO", "         MEND"]
+        assert LightParser._classify_file_content("MYMAC", lines) == "macro"
+
+    def test_sub_detected_via_in_marker(self):
+        """File with <name> IN line is classified as sub."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["MYSUB    IN", "         BR    14", "         OUT"]
+        assert LightParser._classify_file_content("MYSUB", lines) == "sub"
+
+    def test_sub_in_marker_case_insensitive(self):
+        """IN marker matching is case-insensitive for the opcode."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["MYSUB    in", "         BR    14", "         OUT"]
+        assert LightParser._classify_file_content("MYSUB", lines) == "sub"
+
+    def test_asmprogram_detected_via_pgmname(self):
+        """File containing &PGMNAME is classified as asmprogram."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = [
+            "         CSECT",
+            "&PGMNAME SETC  'MYPROG'",
+            "         BR    14",
+            "         END",
+        ]
+        assert LightParser._classify_file_content("MYPROG", lines) == "asmprogram"
+
+    def test_pgmname_case_insensitive(self):
+        """&PGMNAME detection is case-insensitive."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["&pgmname setc 'prog'"]
+        assert LightParser._classify_file_content("PROG", lines) == "asmprogram"
+
+    def test_copybook_fallback_for_data_only(self):
+        """Pure data definitions with no MACRO / IN / &PGMNAME → copybook."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["* data copybook", "MYFIELD  DS    CL8", "MYFIELD2 DS    PL4"]
+        assert LightParser._classify_file_content("MYDATA", lines) == "copybook"
+
+    def test_macro_precedence_over_sub(self):
+        """MACRO keyword takes precedence over an IN marker in the same file."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["         MACRO", "MYMAC    MACRO", "MYMAC    IN", "         MEND"]
+        assert LightParser._classify_file_content("MYMAC", lines) == "macro"
+
+    def test_sub_precedence_over_asmprogram(self):
+        """IN marker takes precedence over &PGMNAME in the same file."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        lines = ["MYSUB    IN", "&PGMNAME SETC 'X'", "         OUT"]
+        assert LightParser._classify_file_content("MYSUB", lines) == "sub"
+
+    def test_empty_file_classified_as_copybook(self):
+        """Empty content defaults to copybook."""
+        from hlasm_parser.pipeline.light_parser import LightParser
+        assert LightParser._classify_file_content("EMPTY", []) == "copybook"
+
+    # ── integration: chunk file naming ───────────────────────────────────────
+
+    def _make_lp(self, tmp_path, src, deps):
+        """Write driver + dep files, run LightParser over all lines."""
+        driver = tmp_path / "driver.asm"
+        driver.write_text(src)
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        for fname, content in deps.items():
+            (deps_dir / fname).write_text(content)
+        out = tmp_path / "out"
+        lp = LightParser(driver_path=driver, deps_dir=deps_dir, output_dir=out)
+        lp.run(1, src.count("\n"))
+        return lp
+
+    _DRIVER = textwrap.dedent("""\
+    PROG     CSECT
+             GO    SUBA
+             BR    14
+    SUBA     IN
+             LOAD  EP=EXTMOD
+             BR    14
+             OUT
+    """)
+
+    def test_load_ep_macro_kind_and_chunk_file(self, tmp_path):
+        """LOAD EP= target whose file contains MACRO gets kind='macro'."""
+        macro_src = "         MACRO\n         EXTMOD\n         MEND\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.mac": macro_src})
+        assert lp.chunk_kinds.get("EXTMOD") == "macro"
+        assert (tmp_path / "out" / "EXTMOD_macro.txt").exists()
+
+    def test_load_ep_macro_added_to_macro_nodes(self, tmp_path):
+        """LOAD EP= macro target is added to macro_nodes for Mermaid styling."""
+        macro_src = "         MACRO\n         EXTMOD\n         MEND\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.mac": macro_src})
+        assert "EXTMOD" in lp.macro_nodes
+
+    def test_load_ep_sub_kind_and_chunk_file(self, tmp_path):
+        """LOAD EP= target whose file has <name> IN gets kind='sub'."""
+        sub_src = "EXTMOD   IN\n         BR    14\n         OUT\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": sub_src})
+        assert lp.chunk_kinds.get("EXTMOD") == "sub"
+        assert (tmp_path / "out" / "EXTMOD_sub.txt").exists()
+
+    def test_load_ep_asmprogram_kind_and_chunk_file(self, tmp_path):
+        """LOAD EP= target whose file contains &PGMNAME gets kind='asmprogram'.
+
+        The file must NOT have a CSECT statement with the target's label,
+        otherwise _find_csect_block takes priority before the file lookup.
+        """
+        asm_src = (
+            "* External assembly program\n"
+            "&PGMNAME SETC  'EXTMOD'\n"
+            "         BR    14\n"
+            "         END\n"
+        )
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": asm_src})
+        assert lp.chunk_kinds.get("EXTMOD") == "asmprogram"
+        assert (tmp_path / "out" / "EXTMOD_asmprogram.txt").exists()
+
+    def test_load_ep_asmprogram_node_tag(self, tmp_path):
+        """asmprogram targets have node_tags=['asmprogram']."""
+        asm_src = "* External program\n&PGMNAME SETC 'EXTMOD'\n         BR    14\n         END\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": asm_src})
+        assert lp.node_tags.get("EXTMOD") == ["asmprogram"]
+
+    def test_load_ep_copybook_fallback_kind(self, tmp_path):
+        """LOAD EP= target with data-only file still defaults to copybook."""
+        cb_src = "* data\nEXTMOD   DS    CL8\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.cpy": cb_src})
+        assert lp.chunk_kinds.get("EXTMOD") == "copybook"
+        assert (tmp_path / "out" / "EXTMOD_copybook.txt").exists()
+
+    # ── integration: graph rendering ─────────────────────────────────────────
+
+    def test_asmprogram_dot_colour(self, tmp_path):
+        """asmprogram nodes appear with lightsalmon fill in DOT output."""
+        asm_src = "* External program\n&PGMNAME SETC 'EXTMOD'\n         BR    14\n         END\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": asm_src})
+        dot = lp.to_dot()
+        assert "lightsalmon" in dot
+        assert "EXTMOD" in dot
+
+    def test_asmprogram_mermaid_classdef(self, tmp_path):
+        """asmprogram nodes get classDef asmprogram in Mermaid output."""
+        asm_src = "* External program\n&PGMNAME SETC 'EXTMOD'\n         BR    14\n         END\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": asm_src})
+        mermaid = lp.to_mermaid()
+        assert "classDef asmprogram" in mermaid
+        assert "class EXTMOD asmprogram" in mermaid
+
+    def test_macro_from_file_mermaid_classdef(self, tmp_path):
+        """Macro targets detected from file content appear in Mermaid macro class."""
+        macro_src = "         MACRO\n         EXTMOD\n         MEND\n"
+        lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.mac": macro_src})
+        mermaid = lp.to_mermaid()
+        assert "classDef macro" in mermaid
+        assert "class EXTMOD macro" in mermaid

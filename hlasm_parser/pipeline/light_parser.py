@@ -244,6 +244,9 @@ class LightParser:
             elif kind == "csect":
                 colour = "lightyellow"
                 shape = "box"
+            elif kind == "asmprogram":
+                colour = "lightsalmon"
+                shape = "box"
             else:
                 colour = "lightblue"
                 shape = "box"
@@ -279,6 +282,13 @@ class LightParser:
             lines.append("  classDef csect fill:#fffacd,stroke:#a0a000,stroke-width:1px;")
             for name in csect_nodes:
                 lines.append(f"  class {name} csect;")
+        asmprogram_nodes = sorted(
+            n for n, k in self.chunk_kinds.items() if k == "asmprogram" and n in self.flow
+        )
+        if asmprogram_nodes:
+            lines.append("  classDef asmprogram fill:#ffa07a,stroke:#8b0000,stroke-width:1px;")
+            for name in asmprogram_nodes:
+                lines.append(f"  class {name} asmprogram;")
         return "\n".join(lines)
 
     def to_nested_flow(self) -> dict:
@@ -1000,8 +1010,16 @@ class LightParser:
                 else:
                     sub_lines = self._find_copybook_file(target)
                     if sub_lines is not None:
-                        self.chunk_kinds[target] = "copybook"
-                        self.node_tags[target] = ["copybook"]
+                        kind = LightParser._classify_file_content(target, sub_lines)
+                        self.chunk_kinds[target] = kind
+                        if kind == "macro":
+                            self.node_tags[target] = ["macro"]
+                            self.macro_nodes.add(target)
+                        elif kind == "asmprogram":
+                            self.node_tags[target] = ["asmprogram"]
+                        elif kind == "copybook":
+                            self.node_tags[target] = ["copybook"]
+                        # "sub" gets no extra tag (consistent with inline subs)
                     else:
                         self.chunk_kinds[target] = "sub"
         self.flow.setdefault(target, [])
@@ -1071,6 +1089,44 @@ class LightParser:
                 except OSError:
                     continue
         return None
+
+    @staticmethod
+    def _classify_file_content(name: str, lines: list[str]) -> str:
+        """Infer the chunk kind from the content of an external file.
+
+        Rules checked in precedence order:
+
+        1. **macro**      – any line has ``MACRO`` as its opcode
+                           (``^[optional-label]\\s+MACRO\\s*$``)
+        2. **sub**        – a line starts with *name* followed by the ``IN``
+                           opcode (HLASM IN/OUT subroutine convention)
+        3. **asmprogram** – any line contains the token ``&PGMNAME``
+                           (common HLASM program-name variable)
+        4. **copybook**   – everything else (default fallback)
+        """
+        # MACRO opcode: optional label then MACRO, nothing else on the line
+        _macro_stmt_re = re.compile(r"^(?:[A-Z@#$]\w*)?\s+MACRO\s*$", re.IGNORECASE)
+        # IN marker: <name> as label with IN as opcode
+        _sub_in_re = re.compile(rf"^{re.escape(name)}\s+IN\b", re.IGNORECASE)
+
+        has_macro = False
+        has_sub_marker = False
+        has_pgmname = False
+        for line in lines:
+            if _macro_stmt_re.match(line):
+                has_macro = True
+            if _sub_in_re.match(line):
+                has_sub_marker = True
+            if "&PGMNAME" in line.upper():
+                has_pgmname = True
+
+        if has_macro:
+            return "macro"
+        if has_sub_marker:
+            return "sub"
+        if has_pgmname:
+            return "asmprogram"
+        return "copybook"
 
     def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
