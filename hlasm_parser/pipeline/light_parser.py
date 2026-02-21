@@ -1131,6 +1131,7 @@ class LightParser:
 
     def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
-        (self.output_dir / f"{name}.txt").write_text(
+        filename = self.driver_path.stem if name == "main" else name
+        (self.output_dir / f"{filename}.txt").write_text(
             "\n".join(lines) + "\n", encoding="utf-8"
         )

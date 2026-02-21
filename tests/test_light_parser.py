@@ -210,7 +210,7 @@ class TestLightParserRun:
         return parser
 
     def test_main_txt_created(self, lp, tmp_path):
-        assert (tmp_path / "main.txt").exists()
+        assert (tmp_path / "driver.txt").exists()
 
     def test_main_chunk_stored(self, lp):
         assert "main" in lp.chunks
@@ -450,7 +450,7 @@ class TestLightParserCli:
             "--end-line", str(MAIN_END),
             "-s", str(out),
         ])
-        assert (out / "chunks" / "main.txt").exists()
+        assert (out / "chunks" / "driver.txt").exists()
         assert (out / "chunks" / "SUBA.txt").exists()
         assert (out / "cfg" / "flow.json").exists()
         assert (out / "cfg" / "cfg.dot").exists()
