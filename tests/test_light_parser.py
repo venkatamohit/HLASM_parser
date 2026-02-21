@@ -1258,10 +1258,10 @@ class TestNestedFlow:
         lp = _inline_lp(tmp_path, src)
         assert lp.to_nested_flow()["format"] == "nested_flow_v1"
 
-    def test_entry_is_main(self, tmp_path):
+    def test_entry_is_driver_stem(self, tmp_path):
         src = "PROG  CSECT\n         BR    14\n"
         lp = _inline_lp(tmp_path, src)
-        assert lp.to_nested_flow()["entry"] == "main"
+        assert lp.to_nested_flow()["entry"] == "driver"
 
     def test_missing_forwarded(self, tmp_path):
         src = "PROG  CSECT\n         GO    NOSUCH\n         BR    14\n"
@@ -1287,7 +1287,7 @@ class TestNestedFlow:
         src = "PROG  CSECT\n         BR    14\n"
         lp = _inline_lp(tmp_path, src)
         entry = lp.to_nested_flow()["chunks"]["main"]
-        assert entry["type"] in ("sub", "macro")
+        assert entry["type"] == "main"
         assert isinstance(entry["tags"], list)
 
     def test_chunks_dict_has_line_count(self, tmp_path):
@@ -1299,10 +1299,10 @@ class TestNestedFlow:
 
     # ── tree root ─────────────────────────────────────────────────────────────
 
-    def test_tree_root_is_main(self, tmp_path):
+    def test_tree_root_name_is_driver_stem(self, tmp_path):
         src = "PROG  CSECT\n         BR    14\n"
         lp = _inline_lp(tmp_path, src)
-        assert lp.to_nested_flow()["tree"]["name"] == "main"
+        assert lp.to_nested_flow()["tree"]["name"] == "driver"
 
     def test_tree_root_has_source_lines(self, tmp_path):
         src = "PROG  CSECT\n         BR    14\n"

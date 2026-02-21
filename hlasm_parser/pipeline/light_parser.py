@@ -322,10 +322,11 @@ class LightParser:
         ``missing`` – names that could not be resolved in any source file.
         """
         # ── flat catalogue ────────────────────────────────────────────────
+        program_name = self.driver_path.stem
         chunks_dict: dict[str, dict] = {}
         for name, lines in self.chunks.items():
             chunks_dict[name] = {
-                "type": self.chunk_kinds.get(name, "sub"),
+                "type": "main" if name == "main" else self.chunk_kinds.get(name, "sub"),
                 "tags": self.node_tags.get(name, []),
                 "line_count": len(lines),
                 "source_lines": lines,
@@ -348,7 +349,7 @@ class LightParser:
                 child_node["seq"] = seq_num
                 calls.append(child_node)
             return {
-                "name": name,
+                "name": program_name if name == "main" else name,
                 "type": info.get("type", "sub"),
                 "tags": info.get("tags", []),
                 "source_lines": info.get("source_lines", []),
@@ -357,7 +358,7 @@ class LightParser:
 
         return {
             "format": "nested_flow_v1",
-            "entry": "main",
+            "entry": program_name,
             "chunks": chunks_dict,
             "tree": build_node("main"),
             "missing": self.missing,
