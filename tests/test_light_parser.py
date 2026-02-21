@@ -210,24 +210,24 @@ class TestLightParserRun:
         return parser
 
     def test_main_txt_created(self, lp, tmp_path):
-        assert (tmp_path / "main_sub.txt").exists()
+        assert (tmp_path / "main.txt").exists()
 
     def test_main_chunk_stored(self, lp):
         assert "main" in lp.chunks
         assert len(lp.chunks["main"]) == MAIN_END - MAIN_START + 1
 
     def test_external_suba_resolved(self, lp, tmp_path):
-        assert (tmp_path / "SUBA_sub.txt").exists()
+        assert (tmp_path / "SUBA.txt").exists()
 
     def test_external_subb_resolved(self, lp, tmp_path):
-        assert (tmp_path / "SUBB_sub.txt").exists()
+        assert (tmp_path / "SUBB.txt").exists()
 
     def test_inline_inlsub_resolved(self, lp, tmp_path):
-        assert (tmp_path / "INLSUB_sub.txt").exists()
+        assert (tmp_path / "INLSUB.txt").exists()
 
     def test_nested_subc_resolved(self, lp, tmp_path):
         """SUBC is called by SUBA – must be resolved transitively."""
-        assert (tmp_path / "SUBC_sub.txt").exists()
+        assert (tmp_path / "SUBC.txt").exists()
 
     def test_flow_has_main_entry(self, lp):
         assert "main" in lp.flow
@@ -284,7 +284,7 @@ class TestLightParserRun:
         assert "BETA" in lp.chunks
 
     def test_txt_files_contain_source_lines(self, lp, tmp_path):
-        content = (tmp_path / "SUBA_sub.txt").read_text()
+        content = (tmp_path / "SUBA.txt").read_text()
         assert "SUBA" in content
         assert "IN" in content
 
@@ -450,8 +450,8 @@ class TestLightParserCli:
             "--end-line", str(MAIN_END),
             "-s", str(out),
         ])
-        assert (out / "chunks" / "main_sub.txt").exists()
-        assert (out / "chunks" / "SUBA_sub.txt").exists()
+        assert (out / "chunks" / "main.txt").exists()
+        assert (out / "chunks" / "SUBA.txt").exists()
         assert (out / "cfg" / "flow.json").exists()
         assert (out / "cfg" / "cfg.dot").exists()
 
@@ -548,7 +548,7 @@ class TestLinkCallDetection:
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
         lp.run(1, 4)
-        assert (tmp_path / "out" / "SUBD_sub.txt").exists()
+        assert (tmp_path / "out" / "SUBD.txt").exists()
 
     def test_l_target_in_flow(self, tmp_path):
         src = textwrap.dedent("""\
@@ -672,7 +672,7 @@ class TestLinkCallDetection:
         driver.write_text(src)
         lp = LightParser(driver_path=driver, deps_dir=DEPS_DIR, output_dir=tmp_path / "out")
         lp.run(1, 3)
-        assert (tmp_path / "out" / "SUBD_sub.txt").exists()
+        assert (tmp_path / "out" / "SUBD.txt").exists()
 
     def test_v_constant_in_flow(self, tmp_path):
         src = "PROG CSECT\n         L     R15,=V(SUBD)\n         BR    14\n"
@@ -981,7 +981,7 @@ class TestEqStarAndVtranSupport:
         driver.write_text(driver_src)
         lp = LightParser(driver_path=driver, deps_dir=None, output_dir=tmp_path / "out")
         lp.run(1, 3)
-        assert (tmp_path / "out" / "VTRANTAB_sub.txt").exists()
+        assert (tmp_path / "out" / "VTRANTAB.txt").exists()
 
     def test_vtran_table_in_dot_output(self, tmp_path):
         driver_src = textwrap.dedent("""\
@@ -1047,7 +1047,7 @@ class TestMacroCatalogAndTagging:
         lp.run(1, 3)
 
         assert (out / "macros.json").exists()
-        assert (out / "NUMCHK_macro.txt").exists()
+        assert (out / "NUMCHK.txt").exists()
         macros = json.loads((out / "macros.json").read_text())
         names = [m["name"] for m in macros["macros"]]
         assert "NUMCHK" in names
@@ -1105,8 +1105,8 @@ class TestMacroHeaderAndEquAliasResolution:
         names = [m["name"] for m in macros["macros"]]
         assert "ALLOW" in names
         assert "&LABEL" not in names
-        assert (out / "ALLOW_macro.txt").exists()
-        assert not (out / "&LABEL_macro.txt").exists()
+        assert (out / "ALLOW.txt").exists()
+        assert not (out / "&LABEL.txt").exists()
 
     def test_l_v_target_resolves_via_equ_alias(self, tmp_path):
         src = textwrap.dedent("""\
@@ -1195,7 +1195,7 @@ class TestMacroHeaderAndEquAliasResolution:
         macros = json.loads((out / "macros.json").read_text())
         names = [m["name"] for m in macros["macros"]]
         assert "OPEN" in names
-        assert (out / "OPEN_macro.txt").exists()
+        assert (out / "OPEN.txt").exists()
 
     def test_a_constant_equ_block_extracts_and_resolves_nested_routine(self, tmp_path):
         src = textwrap.dedent("""\
@@ -1283,11 +1283,11 @@ class TestNestedFlow:
         assert len(chunks["main"]["source_lines"]) > 0
         assert isinstance(chunks["SUBA"]["source_lines"], list)
 
-    def test_chunks_dict_has_kind_and_tags(self, tmp_path):
+    def test_chunks_dict_has_type_and_tags(self, tmp_path):
         src = "PROG  CSECT\n         BR    14\n"
         lp = _inline_lp(tmp_path, src)
         entry = lp.to_nested_flow()["chunks"]["main"]
-        assert entry["kind"] in ("sub", "macro")
+        assert entry["type"] in ("sub", "macro")
         assert isinstance(entry["tags"], list)
 
     def test_chunks_dict_has_line_count(self, tmp_path):
@@ -1430,7 +1430,7 @@ class TestNestedFlow:
         nf = lp.to_nested_flow()
         # MYMAC should appear in the chunks catalogue as a macro
         if "MYMAC" in nf["chunks"]:
-            assert nf["chunks"]["MYMAC"]["kind"] == "macro"
+            assert nf["chunks"]["MYMAC"]["type"] == "macro"
 
     def test_macro_node_tag_in_tree(self, tmp_path):
         src = textwrap.dedent("""\
@@ -1912,7 +1912,7 @@ class TestCopyAndCsectResolution:
         deps = {"MYBOOK.cpy": "         DS    CL10\n"}
         lp = _inline_lp(tmp_path, src, deps=deps)
         chunks = lp.to_nested_flow()["chunks"]
-        assert chunks["MYBOOK"]["kind"] == "copybook"
+        assert chunks["MYBOOK"]["type"] == "copybook"
 
     def test_copybook_dot_coloured_lightgreen(self, tmp_path):
         """Copybook nodes are coloured lightgreen in DOT output."""
@@ -2423,7 +2423,7 @@ class TestLoadEpAndCallResolution:
     # ── COPY inside CSECT (end-to-end lockdown) ───────────────────────────────
 
     def test_copy_inside_csect_creates_copybook_chunk(self, tmp_path):
-        """COPY MYBOOK inside a CSECT block creates MYBOOK_copybook.txt."""
+        """COPY MYBOOK inside a CSECT block creates MYBOOK.txt."""
         src = textwrap.dedent("""\
         PROG     CSECT
                  GO    MYSUB
@@ -2447,7 +2447,7 @@ class TestLoadEpAndCallResolution:
         assert "MYBOOK" in lp.flow.get("MYSUB", [])
         assert "MYBOOK" in lp.chunks
         assert "MYBOOK" not in lp.missing
-        assert (out / "MYBOOK_copybook.txt").exists()
+        assert (out / "MYBOOK.txt").exists()
 
     def test_copy_inside_csect_in_nested_flow(self, tmp_path):
         """COPY MYBOOK inside CSECT block appears in MYSUB's nested flow calls."""
@@ -2725,7 +2725,7 @@ class TestClassifyFileContent:
         macro_src = "         MACRO\n         EXTMOD\n         MEND\n"
         lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.mac": macro_src})
         assert lp.chunk_kinds.get("EXTMOD") == "macro"
-        assert (tmp_path / "out" / "EXTMOD_macro.txt").exists()
+        assert (tmp_path / "out" / "EXTMOD.txt").exists()
 
     def test_load_ep_macro_added_to_macro_nodes(self, tmp_path):
         """LOAD EP= macro target is added to macro_nodes for Mermaid styling."""
@@ -2738,7 +2738,7 @@ class TestClassifyFileContent:
         sub_src = "EXTMOD   IN\n         BR    14\n         OUT\n"
         lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": sub_src})
         assert lp.chunk_kinds.get("EXTMOD") == "sub"
-        assert (tmp_path / "out" / "EXTMOD_sub.txt").exists()
+        assert (tmp_path / "out" / "EXTMOD.txt").exists()
 
     def test_load_ep_asmprogram_kind_and_chunk_file(self, tmp_path):
         """LOAD EP= target whose file contains &PGMNAME gets kind='asmprogram'.
@@ -2754,7 +2754,7 @@ class TestClassifyFileContent:
         )
         lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.asm": asm_src})
         assert lp.chunk_kinds.get("EXTMOD") == "asmprogram"
-        assert (tmp_path / "out" / "EXTMOD_asmprogram.txt").exists()
+        assert (tmp_path / "out" / "EXTMOD.txt").exists()
 
     def test_load_ep_asmprogram_node_tag(self, tmp_path):
         """asmprogram targets have node_tags=['asmprogram']."""
@@ -2767,7 +2767,7 @@ class TestClassifyFileContent:
         cb_src = "* data\nEXTMOD   DS    CL8\n"
         lp = self._make_lp(tmp_path, self._DRIVER, {"EXTMOD.cpy": cb_src})
         assert lp.chunk_kinds.get("EXTMOD") == "copybook"
-        assert (tmp_path / "out" / "EXTMOD_copybook.txt").exists()
+        assert (tmp_path / "out" / "EXTMOD.txt").exists()
 
     # ── integration: graph rendering ─────────────────────────────────────────
 

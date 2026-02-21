@@ -303,14 +303,14 @@ class LightParser:
         Schema
         ------
         ``chunks`` (flat dict, keyed by name):
-            kind         – ``"sub"`` | ``"macro"``
+            type         – ``"sub"`` | ``"macro"`` | ``"copybook"`` | ``"csect"`` | ``"asmprogram"``
             tags         – list of string tags (e.g. ``["entry"]``, ``["macro"]``)
             line_count   – number of source lines in the chunk
             source_lines – raw source lines (list of str)
 
         ``tree`` (recursive node):
             name         – chunk name
-            kind / tags  – same as chunks dict entry
+            type / tags  – same as chunks dict entry
             source_lines – raw source lines (absent on ref-stub nodes)
             calls        – ordered list of child nodes **in source call order**
             seq          – 1-indexed call-sequence position within the parent
@@ -325,7 +325,7 @@ class LightParser:
         chunks_dict: dict[str, dict] = {}
         for name, lines in self.chunks.items():
             chunks_dict[name] = {
-                "kind": self.chunk_kinds.get(name, "sub"),
+                "type": self.chunk_kinds.get(name, "sub"),
                 "tags": self.node_tags.get(name, []),
                 "line_count": len(lines),
                 "source_lines": lines,
@@ -349,7 +349,7 @@ class LightParser:
                 calls.append(child_node)
             return {
                 "name": name,
-                "kind": info.get("kind", "sub"),
+                "type": info.get("type", "sub"),
                 "tags": info.get("tags", []),
                 "source_lines": info.get("source_lines", []),
                 "calls": calls,
@@ -1130,6 +1130,6 @@ class LightParser:
 
     def _save_chunk(self, name: str, lines: list[str], kind: str = "sub") -> None:
         self.chunks[name] = lines
-        (self.output_dir / f"{name}_{kind}.txt").write_text(
+        (self.output_dir / f"{name}.txt").write_text(
             "\n".join(lines) + "\n", encoding="utf-8"
         )
